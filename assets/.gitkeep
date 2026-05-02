@@ -1,0 +1,5 @@
+# This file keeps the assets/ directory tracked in git so the post-build
+# CMake step that copies it next to the binary doesn't fail on fresh
+# clones. Real OBJ models (teapot.obj, spot.obj, etc.) are gitignored
+# (*.obj) and can be dropped here at any time — the engine logs and
+# continues if they're missing.
