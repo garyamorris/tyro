@@ -89,6 +89,7 @@ Cycle with `[` and `]`:
 | 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader |
 | 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders |
 | 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox |
+| 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight, PCF shadows, IBL |
 
 ## Hotkeys
 

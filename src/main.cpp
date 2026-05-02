@@ -505,22 +505,173 @@ private:
   }
 
   // ===== Scene cycling =====================================================
+  struct SceneInfo {
+    const char* name;
+    const char* desc;
+  };
+  static SceneInfo sceneInfo(int idx) {
+    switch (idx) {
+      case 0: return {"MATERIALS",     "5 mesh types x 4 materials (phong, toon, rim)"};
+      case 1: return {"LIGHT GARDEN",  "6 colored point lights orbit a checker plane"};
+      case 2: return {"OCTREE STRESS", "512 entities + frustum cull via static octree"};
+      case 3: return {"EFFECTS",       "hero meshes with strong contrast for post-FX"};
+      case 4: return {"SHOWCASE BAY",  "teapot + spot the cow, shadowed warm/cool light"};
+      case 5: return {"WATER POND",    "sin-sum vertex displacement + Fresnel water"};
+      case 6: return {"GEOMETRY LAB",  "explode geometry shader on teapot/cow/torus"};
+      case 7: return {"TEXTURE LAB",   "GPU textures vs procedural patterns vs exotic"};
+      case 8: return {"PBR LAB",       "metallic + roughness sweeps, Cook-Torrance + IBL"};
+      case 9: return {"ATRIUM",        "enclosed hall: every feature in one environment"};
+    }
+    return {"?", ""};
+  }
+
   void buildScene(int idx) {
     scene_.clearActiveScene();
-    constexpr int kSceneCount = 9;
+    constexpr int kSceneCount = 10;
     sceneIdx_ = ((idx % kSceneCount) + kSceneCount) % kSceneCount;
     switch (sceneIdx_) {
-      case 0: buildSceneMaterials();        sceneName_ = "MATERIALS";    break;
-      case 1: buildSceneLightGarden();      sceneName_ = "LIGHT GARDEN"; break;
-      case 2: buildSceneOctreeStress();     sceneName_ = "OCTREE STRESS"; break;
-      case 3: buildSceneEffects();          sceneName_ = "EFFECTS";      break;
-      case 4: buildSceneShowcase();         sceneName_ = "SHOWCASE BAY"; break;
-      case 5: buildSceneWaterPond();        sceneName_ = "WATER POND";   break;
-      case 6: buildSceneGeometryLab();      sceneName_ = "GEOMETRY LAB"; break;
-      case 7: buildSceneTextureShowcase();  sceneName_ = "TEXTURE LAB";  break;
-      case 8: buildScenePbrShowcase();      sceneName_ = "PBR LAB";      break;
+      case 0: buildSceneMaterials();        break;
+      case 1: buildSceneLightGarden();      break;
+      case 2: buildSceneOctreeStress();     break;
+      case 3: buildSceneEffects();          break;
+      case 4: buildSceneShowcase();         break;
+      case 5: buildSceneWaterPond();        break;
+      case 6: buildSceneGeometryLab();      break;
+      case 7: buildSceneTextureShowcase();  break;
+      case 8: buildScenePbrShowcase();      break;
+      case 9: buildSceneAtrium();           break;
     }
+    SceneInfo info = sceneInfo(sceneIdx_);
+    sceneName_ = info.name;
+    sceneDesc_ = info.desc;
     scene_.rebuildOctree();
+  }
+
+  // Scene 10: a full enclosed environment that exercises every feature in the
+  // engine — brick walls + wood floor + marble ceiling (PBR + textures), 6
+  // marble columns, central pedestal with iridescent orb, water pool, hologram
+  // display, explode-shader torus, teapot + spot the cow on display plinths,
+  // 6 flickering torch point lights, a key sun streaming through a skylight,
+  // PCF shadows, IBL ambient + skybox.
+  void buildSceneAtrium() {
+    const float W = 24.0f, H = 8.0f, L = 24.0f;
+    const float skyHalf = 3.0f; // half-width of the central skylight opening
+
+    auto put = [&](Mesh* m, AABB ab, Material* mat, Vec3 pos, Vec3 sc) {
+      Entity e; e.mesh = m; e.material = mat; e.localAABB = ab;
+      e.position = pos; e.scaling = sc;
+      scene_.entities.push_back(e);
+    };
+
+    // Per-scene material clones so each surface tiles its texture nicely.
+    auto cloneMat = [&](Material* base, Vec2 uv) -> Material* {
+      auto m = std::make_unique<Material>(*base);
+      m->uvScale = uv;
+      Material* p = m.get();
+      scene_.materials.push_back(std::move(m));
+      return p;
+    };
+    Material* matWallBrick    = cloneMat(matPbrBrick_,  Vec2{6, 2});
+    Material* matFloorWood    = cloneMat(matPbrWood_,   Vec2{8, 8});
+    Material* matCeilMarble   = cloneMat(matPbrMarble_, Vec2{4, 4});
+    Material* matColumnMarble = cloneMat(matPbrMarble_, Vec2{1, 2});
+
+    // ---- Floor + 4 walls (cubes scaled flat — back-face cull naturally
+    // hides the outside surface so we see them from inside the room).
+    put(meshCube_, cubeAABB_, matFloorWood,  Vec3{0, -0.05f, 0},      Vec3{W*0.5f, 0.05f, L*0.5f});
+    put(meshCube_, cubeAABB_, matWallBrick,  Vec3{0,    H*0.5f, -L*0.5f}, Vec3{W*0.5f, H*0.5f, 0.1f}); // back
+    put(meshCube_, cubeAABB_, matWallBrick,  Vec3{0,    H*0.5f,  L*0.5f}, Vec3{W*0.5f, H*0.5f, 0.1f}); // front
+    put(meshCube_, cubeAABB_, matWallBrick,  Vec3{-W*0.5f, H*0.5f, 0},   Vec3{0.1f, H*0.5f, L*0.5f}); // left
+    put(meshCube_, cubeAABB_, matWallBrick,  Vec3{ W*0.5f, H*0.5f, 0},   Vec3{0.1f, H*0.5f, L*0.5f}); // right
+
+    // ---- Ceiling: 4 strips around a central skylight square. Sun + IBL
+    // stream in through the hole and cast crisp shadows on the floor.
+    float strip = (L*0.5f - skyHalf) * 0.5f;
+    float strip2 = (W*0.5f - skyHalf) * 0.5f;
+    float zMid = skyHalf + strip;
+    float xMid = skyHalf + strip2;
+    put(meshCube_, cubeAABB_, matCeilMarble, Vec3{0, H, -zMid}, Vec3{W*0.5f, 0.1f, strip}); // north
+    put(meshCube_, cubeAABB_, matCeilMarble, Vec3{0, H,  zMid}, Vec3{W*0.5f, 0.1f, strip}); // south
+    put(meshCube_, cubeAABB_, matCeilMarble, Vec3{-xMid, H, 0}, Vec3{strip2, 0.1f, skyHalf}); // west
+    put(meshCube_, cubeAABB_, matCeilMarble, Vec3{ xMid, H, 0}, Vec3{strip2, 0.1f, skyHalf}); // east
+
+    // ---- 6 columns ------------------------------------------------------
+    auto column = [&](float x, float z) {
+      put(meshCylinder_, cylAABB_, matColumnMarble,
+          Vec3{x, H*0.5f, z}, Vec3{0.55f, H*0.5f, 0.55f});
+    };
+    float cx = W*0.5f - 2.5f;
+    float cz = L*0.5f - 2.5f;
+    column( cx,  cz); column(-cx,  cz);
+    column( cx, -cz); column(-cx, -cz);
+    column( cx, 0);   column(-cx, 0);
+
+    // ---- Central altar: wood pedestal + iridescent orb ------------------
+    put(meshCube_,   cubeAABB_,   matPbrWood_,    Vec3{0, 0.4f, 0}, Vec3{0.6f, 0.4f, 0.6f});
+    put(meshSphere_, sphereAABB_, matIridescent_, Vec3{0, 1.35f, 0}, Vec3{0.55f, 0.55f, 0.55f});
+
+    // ---- Side features --------------------------------------------------
+    // Water pool — corner alcove. meshWater_ is a 20x20 dense plane.
+    put(meshWater_, waterAABB_, matWater_, Vec3{-7.0f, 0.06f, -7.0f}, Vec3{0.18f, 1.0f, 0.18f});
+
+    // Hologram cube on plinth (against the back wall).
+    put(meshCube_, cubeAABB_, matPbrWood_,  Vec3{0, 0.3f, -8.5f}, Vec3{0.7f, 0.3f, 0.7f});
+    put(meshCube_, cubeAABB_, matHologram_, Vec3{0, 1.0f, -8.5f}, Vec3{0.7f, 0.7f, 0.7f});
+
+    // Explode-shader torus on plinth (right side).
+    put(meshCube_,  cubeAABB_,  matPbrWood_, Vec3{ 8.0f, 0.3f,  0.0f}, Vec3{0.7f, 0.3f, 0.7f});
+    put(meshTorus_, torusAABB_, matExplode_, Vec3{ 8.0f, 1.2f,  0.0f}, Vec3{1.0f, 1.0f, 1.0f});
+
+    // Spot the cow display (front).
+    if (meshSpot_) {
+      Vec3 sc = fitScale(spotAABB_, 1.5f);
+      put(meshCube_, cubeAABB_, matPbrWood_, Vec3{0, 0.3f, 8.0f}, Vec3{0.9f, 0.3f, 0.9f});
+      put(meshSpot_, spotAABB_, matLitWarm_, Vec3{0, 0.9f, 8.0f}, sc);
+    }
+
+    // Teapot display (left side).
+    if (meshTeapot_) {
+      Vec3 sc = fitScale(teapotAABB_, 1.5f);
+      put(meshCube_,   cubeAABB_,   matPbrWood_, Vec3{-8.0f, 0.3f, 0.0f}, Vec3{0.7f, 0.3f, 0.7f});
+      put(meshTeapot_, teapotAABB_, matLitWarm_, Vec3{-8.0f, 0.7f, 0.0f}, sc);
+    }
+
+    // ---- Lights ---------------------------------------------------------
+    // Key light: sun streaming down through the skylight, casts shadows.
+    Light sun; sun.type = LightType::Directional;
+    sun.direction = normalize(Vec3{-0.1f, -1.0f, 0.05f});
+    sun.color = Vec3{1.0f, 0.92f, 0.78f}; sun.intensity = 1.5f;
+    scene_.lights.push_back(sun);
+
+    // 6 torches at column tops, warm and flickering. We track the first
+    // entity index to drive marker spheres in tickActiveScene.
+    Vec2 torchXZ[6] = {
+      { cx,  cz}, {-cx,  cz}, { cx, -cz}, {-cx, -cz}, { cx, 0}, {-cx, 0},
+    };
+    Vec3 torchColor{1.0f, 0.55f, 0.20f};
+    atriumTorchEntityStart_ = static_cast<int>(scene_.entities.size());
+    for (int i = 0; i < 6; ++i) {
+      Light torch; torch.type = LightType::Point;
+      torch.position  = Vec3{torchXZ[i].x, H - 1.0f, torchXZ[i].y};
+      torch.color     = torchColor;
+      torch.intensity = 4.0f;
+      torch.radius    = 8.0f;
+      scene_.lights.push_back(torch);
+
+      // Emissive marker sphere — visualises each torch.
+      auto m = std::make_unique<Material>();
+      m->shader   = shUnlit_;
+      m->albedo   = torchColor;
+      m->emissive = torchColor * 1.5f;
+      Material* mp = m.get();
+      scene_.materials.push_back(std::move(m));
+      Entity e; e.mesh = meshSphere_; e.material = mp; e.localAABB = sphereAABB_;
+      e.position = torch.position; e.scaling = Vec3{0.12f, 0.12f, 0.12f};
+      scene_.entities.push_back(e);
+    }
+
+    flyCam_.setLook(Vec3{0, 1.7f, 9.5f}, Vec3{0, 1.4f, 0});
+    scene_.camera.zFar = 100.0f;
   }
 
   void buildScenePbrShowcase() {
@@ -923,6 +1074,23 @@ private:
           std::sin(time_ * 0.5f) * 4.0f
         };
       }
+    } else if (sceneIdx_ == 9) {
+      // Atrium — flicker the 6 torch lights and pulse their marker spheres.
+      // Sun is at lights[0]; torches are lights[1..6].
+      const int firstTorch = 1;
+      for (int i = 0; i < 6 && firstTorch + i < (int)scene_.lights.size(); ++i) {
+        float n = std::sin(time_ * 7.3f + i * 1.7f) * 0.5f
+                + std::sin(time_ * 13.1f + i * 0.9f) * 0.3f;
+        scene_.lights[firstTorch + i].intensity = 4.0f + n * 0.6f;
+        // Subtle marker-sphere pulse — tracks light intensity.
+        if (atriumTorchEntityStart_ >= 0) {
+          int eidx = atriumTorchEntityStart_ + i;
+          if (eidx < (int)scene_.entities.size()) {
+            float s = 0.12f + n * 0.012f;
+            scene_.entities[eidx].scaling = Vec3{s, s, s};
+          }
+        }
+      }
     } else if (sceneIdx_ == 5) {
       // Water Pond — bob the floating teapot and cow on the water surface.
       if (waterFloatStart_ >= 0) {
@@ -1144,7 +1312,10 @@ private:
                                           "UNLOCKED";
     text_.drawf(x, y, scale, col, "FPS %d (%.1f MS)  CAP %s",
                 int(fpsAvg_), frameMs_, lockStr); y += lh;
-    text_.drawf(x, y, scale, col, "SCENE %d/9 %s", sceneIdx_ + 1, sceneName_); y += lh;
+    text_.drawf(x, y, scale, col, "SCENE %d/10 %s", sceneIdx_ + 1, sceneName_); y += lh;
+    if (sceneDesc_ && sceneDesc_[0]) {
+      text_.drawf(x, y, scale, dim, "  %s", sceneDesc_); y += lh;
+    }
     text_.drawf(x, y, scale, col, "POST FX  %s",  postFxName()); y += lh;
     text_.drawf(x, y, scale, col, "ENTITIES %d/%d", visibleCount_, (int)scene_.entities.size()); y += lh;
     text_.drawf(x, y, scale, col, "OCTREE %d NODES", scene_.totalOctreeNodes()); y += lh;
@@ -1250,6 +1421,7 @@ private:
 
   int waterEntityIdx_  = -1;
   int waterFloatStart_ = -1;
+  int atriumTorchEntityStart_ = -1;
 
   enum class PostFx { None, Sobel, Bloom, Fog, Ssao, Chromatic, COUNT };
   PostFx postFx_ = PostFx::None;
@@ -1260,6 +1432,7 @@ private:
   std::vector<int> visible_;
   int sceneIdx_ = 0;
   const char* sceneName_ = "?";
+  const char* sceneDesc_ = "";
   int lightGardenStart_ = 0;
   bool showNormals_     = false;
   bool showWireOverlay_ = false;
