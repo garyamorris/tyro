@@ -54,6 +54,10 @@ public:
   // Returns indices into `entities` that survive frustum culling.
   void cullVisible(std::vector<int>& outIndices) const;
 
+  // Append every octree node's AABB to `out`. Used by DebugDraw to overlay
+  // the spatial partition that drives broad-phase culling.
+  void octreeNodeBounds(std::vector<AABB>& out) const;
+
   int  totalOctreeNodes() const { return octree_.totalNodes(); }
 
   // Issue draw calls for the visible entity set. Uploads per-entity model

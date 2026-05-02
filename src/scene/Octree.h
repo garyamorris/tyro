@@ -26,6 +26,10 @@ public:
   // more entries handed to the renderer (which is doing its own per-draw work).
   void cull(const Frustum& f, std::vector<int>& outIndices) const;
 
+  // Append every node's AABB to `out` (parent first, then children). Used by
+  // DebugDraw to make the partition visible.
+  void collectNodeBounds(std::vector<AABB>& out) const;
+
 private:
   struct Node {
     AABB bounds;
@@ -42,6 +46,7 @@ private:
                 const std::vector<AABB>& itemAABBs);
   void   gatherVisible(const Node* n, const Frustum& f,
                        std::vector<int>& out) const;
+  void   gatherNodeBounds(const Node* n, std::vector<AABB>& out) const;
   int    countNodes(const Node* n) const;
 };
 

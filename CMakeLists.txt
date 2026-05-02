@@ -59,6 +59,7 @@ add_executable(tyro
   src/renderer/Cubemap.cpp
   src/renderer/IblBaker.cpp
   src/renderer/Skybox.cpp
+  src/renderer/DebugDraw.cpp
   src/loader/ObjLoader.cpp
   src/scene/Camera.cpp
   src/scene/FlyCamera.cpp

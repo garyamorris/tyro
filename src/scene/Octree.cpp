@@ -82,6 +82,18 @@ void Octree::cull(const Frustum& f, std::vector<int>& outIndices) const {
   gatherVisible(root_.get(), f, outIndices);
 }
 
+void Octree::gatherNodeBounds(const Node* n, std::vector<AABB>& out) const {
+  if (!n) return;
+  out.push_back(n->bounds);
+  if (!n->leaf) {
+    for (auto& c : n->children) if (c) gatherNodeBounds(c.get(), out);
+  }
+}
+
+void Octree::collectNodeBounds(std::vector<AABB>& out) const {
+  gatherNodeBounds(root_.get(), out);
+}
+
 int Octree::countNodes(const Node* n) const {
   if (!n) return 0;
   int c = 1;

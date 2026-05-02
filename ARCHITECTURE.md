@@ -134,6 +134,7 @@ to see what GL minimally requires.
 | `Cubemap` | `GL_TEXTURE_CUBE_MAP` wrapper with optional mip chain + per-face FBO attachment for IBL bake passes |
 | `IblBaker` | One-shot bake of env cubemap + irradiance + prefilter (mip-per-roughness, GGX importance) + 2D BRDF LUT, plus a procedural HDR sky generator |
 | `Skybox` | Renders a cubemap as the background after the scene pass (`gl_Position.xyww` + `GL_LEQUAL` + depth-mask off) |
+| `DebugDraw` | Immediate-mode batched line renderer for entity AABBs, octree node bounds, and arbitrary debug gizmos (single `GL_LINES` draw per frame) |
 | `Primitives` | CPU procedural mesh generators: cube, sphere, plane, torus, cylinder |
 | `ProceduralTextures` | RGBA8 byte-buffer generators: checker, brick, wood, marble, noise, hex |
 | `GpuTimer` | `GL_TIME_ELAPSED` queries with 2-frame ping-pong; section-named breakdown |

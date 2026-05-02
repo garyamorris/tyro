@@ -122,6 +122,7 @@ Cycle with `[` and `]`:
 | `P` | Cycle post-process effect |
 | `N` | Toggle geometry-shader normals overlay |
 | `T` | Toggle wireframe overlay |
+| `B` | Toggle debug bounds overlay (entity AABBs + octree node boxes — pair with `F` to see culling work) |
 | `J` | Toggle directional shadow mapping |
 | `K` | Toggle image-based lighting (IBL ambient + skybox) |
 | `V` | Cycle FPS cap (120 / 60 / unlocked) |

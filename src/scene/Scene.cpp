@@ -33,6 +33,10 @@ void Scene::rebuildOctree() {
   octree_.build(aabbs, world, /*maxDepth=*/5, /*maxItemsPerNode=*/4);
 }
 
+void Scene::octreeNodeBounds(std::vector<AABB>& out) const {
+  octree_.collectNodeBounds(out);
+}
+
 void Scene::cullVisible(std::vector<int>& out) const {
   Frustum f = camera.frustum();
   octree_.cull(f, out);
