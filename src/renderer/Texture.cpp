@@ -38,6 +38,15 @@ void Texture::apply(const Options& opts) {
                   opts.filterLinear ? GL_LINEAR : GL_NEAREST);
 }
 
+bool Texture::loadFromFile(const char* path) {
+  return loadFromFile(path, Options{});
+}
+
+bool Texture::loadFromMemory(int w, int h, int channels,
+                             const std::uint8_t* pixels) {
+  return loadFromMemory(w, h, channels, pixels, Options{});
+}
+
 bool Texture::loadFromFile(const char* path, const Options& opts) {
   int w = 0, h = 0, c = 0;
   stbi_set_flip_vertically_on_load(1);

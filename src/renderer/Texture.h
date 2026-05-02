@@ -24,9 +24,12 @@ public:
   Texture(Texture&& o) noexcept { *this = static_cast<Texture&&>(o); }
   Texture& operator=(Texture&& o) noexcept;
 
-  bool loadFromFile  (const char* path, const Options& opts = {});
+  bool loadFromFile  (const char* path);
+  bool loadFromFile  (const char* path, const Options& opts);
   bool loadFromMemory(int width, int height, int channels,
-                      const std::uint8_t* pixels, const Options& opts = {});
+                      const std::uint8_t* pixels);
+  bool loadFromMemory(int width, int height, int channels,
+                      const std::uint8_t* pixels, const Options& opts);
 
   void destroy();
   unsigned int handle() const { return tex_; }
