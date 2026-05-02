@@ -4,6 +4,14 @@
 
 namespace tyro {
 
+// Camera — view + projection state for the scene pass.
+//
+// Position / target / up generate the view matrix; fovYDeg / aspect / zNear /
+// zFar generate a right-handed perspective projection (depth range [-1, 1],
+// matching GL convention). frustum() extracts the six culling planes from
+// proj * view for octree culling. FlyCamera writes back into one of these
+// each frame.
+
 class Camera {
 public:
   Vec3  position { 0.0f, 0.0f, 5.0f };

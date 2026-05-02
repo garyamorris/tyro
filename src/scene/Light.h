@@ -3,6 +3,13 @@
 
 namespace tyro {
 
+// Light — POD describing a directional or point source.
+//
+// Directional: `direction` points where the light *shines* (so shaders use
+// `-direction` as the surface-to-light vector). Point: `position` + `radius`;
+// shaders apply (1 - d/r)^2 attenuation. The first directional light in
+// `Scene::lights` is the one whose view-projection drives the shadow-map pass.
+
 enum class LightType : int {
   Directional = 0,
   Point       = 1,

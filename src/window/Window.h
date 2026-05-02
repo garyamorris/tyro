@@ -5,6 +5,13 @@ struct GLFWwindow;
 
 namespace tyro {
 
+// Window — thin GLFW wrapper.
+//
+// Owns one GLFWwindow with an OpenGL 3.3 core context. Vsync is left off so
+// the Engine can do its own frame-rate cap. Tracks mouse-capture state for
+// FlyCamera and reference-counts GLFW's global init/terminate so a future
+// multi-window setup wouldn't double-init.
+
 struct WindowConfig {
   int width  = 1280;
   int height = 720;

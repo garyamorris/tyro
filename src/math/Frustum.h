@@ -4,6 +4,16 @@
 
 namespace tyro {
 
+// Frustum — six inward-facing planes extracted from a view-projection matrix.
+//
+// fromViewProj() uses Gribb-Hartmann plane extraction directly from the rows
+// of M = P*V. intersects() does a fast cull against an AABB using the
+// "p-vertex" trick: for each plane, test only the box corner farthest along
+// the plane normal — if that corner is behind the plane, the whole box is.
+//
+// Ref: Gribb & Hartmann, "Fast Extraction of Viewing Frustum Planes from the
+//      World-View-Projection Matrix" (2001).
+
 struct Plane {
   Vec3  n {0,1,0}; // unit normal
   float d  = 0.0f;  // n·x + d = 0 (so d = -n·p0)

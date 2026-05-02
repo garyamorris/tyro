@@ -5,6 +5,13 @@
 
 namespace tyro {
 
+// FlyCamera — first-person free-look controller.
+//
+// update() reads mouse delta into yaw/pitch and WASD/Q-E into position
+// (Shift sprints). The cursor must be captured for mouse-look to work — see
+// Window::setCursorCaptured. Call apply() each frame to push the resulting
+// eye/target/up into a Camera that the renderer will then read.
+
 class FlyCamera {
 public:
   Vec3  position { 0.0f, 1.5f, 6.0f };

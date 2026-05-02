@@ -7,6 +7,17 @@ namespace tyro {
 class Mesh;
 struct Material;
 
+// Entity — one drawable thing in a scene.
+//
+// Pairs a Mesh + Material with a TRS transform (position + rotation as quat
+// + non-uniform scale) and the model-space AABB of the mesh. modelMatrix()
+// composes the transform; worldAABB() applies it to the local AABB so
+// frustum culling can work without touching per-vertex data.
+//
+// Entities are stored by value in `Scene::entities` and reference meshes /
+// materials by raw pointer — those resources are owned (uniquely) by the
+// Scene's vectors and outlive the entity.
+
 struct Entity {
   Mesh*     mesh     = nullptr;
   Material* material = nullptr;

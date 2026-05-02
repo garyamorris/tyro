@@ -3,6 +3,21 @@
 
 namespace tyro {
 
+// Engine — the central frame loop.
+//
+// `Engine::run(app, cfg)` owns a Window, then drives the loop:
+//   poll input  →  run zero-or-more fixed-timestep onUpdate(dt) calls  →
+//   call onRender(alpha) once  →  swapBuffers  →  frame-rate cap.
+//
+// The fixed-timestep accumulator is a Glenn-Fiedler integrator: simulation
+// runs at a stable rate (cfg.fixedDt) regardless of render rate, so physics
+// and animation stay deterministic at any FPS. `alpha` is the interpolation
+// factor in [0, 1) between the last and next simulation step — render code
+// can use it to smooth visual updates.
+//
+// To use: subclass Application, override the hooks you need, hand it to
+// Engine::run(). Everything else is the engine's job.
+
 // Game application interface — subclass and override the hooks.
 class Application {
 public:

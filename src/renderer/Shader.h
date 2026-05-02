@@ -7,6 +7,20 @@
 
 namespace tyro {
 
+// Shader — owned vertex + fragment (+ optional geometry) program.
+//
+// Compiled from disk via loadFromFiles(). The killer feature is
+// reloadIfChanged(): poll the source files' modtimes; on change, recompile
+// and link to a *new* program ID and swap. On compile/link failure, the
+// previous program keeps running so the demo doesn't crash mid-edit.
+// Polled every 250 ms in Engine's update step, giving sub-second iteration
+// while editing GLSL.
+//
+// Uniform setters silently no-op when the named uniform doesn't exist on
+// this program (location -1) — that's why every shader can declare just the
+// subset of uniforms it needs and still be driven by Scene's uniform-upload
+// path, which sets every camera/light/IBL value into every shader.
+
 class Shader {
 public:
   Shader() = default;
