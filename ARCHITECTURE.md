@@ -38,6 +38,11 @@ see [README.md](README.md).
                   │  │              │  per-entity uModel + drawElements   │
                   │  └──────┬───────┘                                     │
                   │         │                                             │
+                  │  ┌──────▼───────┐  skybox cube into sceneFbo_         │
+                  │  │  SKY         │  GL_LEQUAL + depthMask=0 so it      │
+                  │  │  pass        │  fills only background pixels       │
+                  │  └──────┬───────┘                                     │
+                  │         │                                             │
                   │  ┌──────▼───────┐  optional: normals.geom (lines)     │
                   │  │  OVERLAY     │  optional: wireframe.geom (PCF-AA)  │
                   │  │  pass        │  blend additively / depth LEQUAL    │
@@ -104,6 +109,9 @@ shared-context refcount.
 | `FrameBuffer` | Color texture + selectable depth (`None` / `Renderbuffer` / sampleable `Texture`) |
 | `ShadowMap` | Depth-only FBO with `glDrawBuffer(GL_NONE)` and `glReadBuffer(GL_NONE)` |
 | `Texture` | stb_image-loaded or memory-loaded; mipmaps + GL_REPEAT defaults |
+| `Cubemap` | `GL_TEXTURE_CUBE_MAP` wrapper with optional mip chain + per-face FBO attachment for IBL bake passes |
+| `IblBaker` | One-shot bake of env cubemap + irradiance + prefilter (mip-per-roughness, GGX importance) + 2D BRDF LUT, plus a procedural HDR sky generator |
+| `Skybox` | Renders a cubemap as the background after the scene pass (`gl_Position.xyww` + `GL_LEQUAL` + depth-mask off) |
 | `Primitives` | CPU procedural mesh generators: cube, sphere, plane, torus, cylinder |
 | `ProceduralTextures` | RGBA8 byte-buffer generators: checker, brick, wood, marble, noise, hex |
 | `GpuTimer` | `GL_TIME_ELAPSED` queries with 2-frame ping-pong; section-named breakdown |
@@ -132,7 +140,14 @@ when the OBJ has none.
 ```
 shaders/
 ├── pbr.{vert,frag}          - Cook-Torrance GGX, Schlick F, Smith G,
-│                              normal mapping via TBN, ACES tonemap, PCF shadow
+│                              normal mapping via TBN, ACES tonemap, PCF shadow,
+│                              split-sum IBL ambient (when uIblEnabled)
+├── cubemap_capture.vert     - shared vertex pass for cube-bake passes
+├── equirect_to_cube.frag    - sample equirect HDR by direction
+├── irradiance_conv.frag     - cosine-hemisphere convolution → diffuse cube
+├── prefilter.frag           - GGX importance-sampled radiance, mip-per-roughness
+├── brdf_lut.frag            - 2D LUT (NdV × roughness) → (scale, bias)
+├── skybox.{vert,frag}       - render env cubemap behind the scene
 ├── phong_lit.{vert,frag}    - main lit shader, texture-aware, PCF shadow
 ├── unlit.{vert,frag}        - normal-tinted matcap-ish
 ├── toon.{vert,frag}         - 3-band cel + rim
@@ -166,6 +181,7 @@ first time a given shader is bound (tracked via `uploadedShaders_`). It uploads:
 - `uLights[i]` struct array + `uLightCount` (clamped to 8)
 - `uLightVP`, `uShadowMap` (TEX3), `uShadowEnabled`
 - `uTime` (drives water + explode + iridescent + hologram)
+- `uIblEnabled`, `uPrefilterMaxLod`, plus TEX5/6/7 binds when IBL is on
 
 Then per-entity, `Material::apply()` sets material values and binds the
 albedo texture to TEX0 if any. Finally per-entity:
@@ -173,9 +189,32 @@ albedo texture to TEX0 if any. Finally per-entity:
 - `uModel`
 - `uNormalMatrix` (inverse-transpose of upper-left 3×3 of model)
 
-Texture-unit assignments are stable: TEX0 = albedo, TEX1 = post-process bloom
-input, TEX3 = shadow map. Shaders that don't declare a uniform silently ignore
-its upload (location -1 → no-op).
+Texture-unit assignments are stable: TEX0 = albedo, TEX1 = normal map (PBR),
+TEX2 = metallic-roughness map (PBR), TEX3 = shadow map, TEX5 = irradiance
+cubemap, TEX6 = prefiltered radiance cubemap, TEX7 = BRDF LUT. Shaders that
+don't declare a uniform silently ignore its upload (location -1 → no-op).
+
+## IBL bake (one-shot at startup)
+
+`IblBaker::bakeFromEquirect` runs the full split-sum pipeline once at app
+init and caches the four products (env cube + irradiance cube + prefilter
+cube + BRDF LUT) for the lifetime of the app.
+
+1. **Equirect → cubemap.** Render a unit cube into each of the 6 faces of a
+   512² RGB16F cube target via `equirect_to_cube.frag`, sampling the
+   equirect by direction. Then `glGenerateMipmap` so the prefilter pass
+   can sample lower mips for variance control.
+2. **Diffuse irradiance.** A 32² cubemap convolution: for each direction,
+   integrate `Li · cosθ` over the upper hemisphere via 90×30 sampling.
+3. **Prefiltered radiance.** A 128² × 5-mip cubemap. Each mip corresponds
+   to a fixed roughness in [0, 1]. GGX importance-sampled with 1024
+   Hammersley samples; `mipLevel = ½ log₂(saSample / saTexel)` reduces
+   hot-pixel variance for low-roughness mips (Krivanek/Colbert).
+4. **BRDF LUT.** A 512² RG16F 2D pass over (NdV, roughness) integrating
+   `(1 − Fc)·Gvis` and `Fc·Gvis` for the split-sum approximation.
+
+The procedural HDR sky source (`makeProceduralSkyHDR`) is a hand-rolled
+gradient + bright HDR sun disc — keeps the project asset-free.
 
 ## Rendering correctness notes
 

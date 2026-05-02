@@ -14,6 +14,9 @@ class Texture;
 //   TEX1 = normalTex   (PBR)
 //   TEX2 = mrTex       (PBR — R: metallic, G: roughness — glTF-ish)
 //   TEX3 = shadow map  (set by Scene::uploadSceneUniforms, not here)
+//   TEX5 = irradiance cubemap (Scene-bound, IBL)
+//   TEX6 = prefiltered radiance cubemap (Scene-bound, IBL)
+//   TEX7 = BRDF integration LUT (Scene-bound, IBL)
 struct Material {
   Shader*  shader      = nullptr;
   Vec3     albedo      { 0.8f, 0.8f, 0.8f };

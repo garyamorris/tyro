@@ -88,6 +88,27 @@ void Scene::uploadSceneUniforms(Shader* sh) {
     glActiveTexture(GL_TEXTURE0);
   }
 
+  // IBL bindings — TEX5/6/7. Shaders that don't declare these uniforms get
+  // a silent no-op upload (location -1).
+  bool haveIbl = iblEnabled
+              && irradianceCubemap != 0
+              && prefilterCubemap  != 0
+              && brdfLut           != 0;
+  sh->setFloat("uIblEnabled",    haveIbl ? 1.0f : 0.0f);
+  sh->setFloat("uPrefilterMaxLod", static_cast<float>(prefilterMipLevels - 1));
+  if (haveIbl) {
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceCubemap);
+    sh->setInt("uIrradianceMap", 5);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterCubemap);
+    sh->setInt("uPrefilterMap", 6);
+    glActiveTexture(GL_TEXTURE7);
+    glBindTexture(GL_TEXTURE_2D, brdfLut);
+    sh->setInt("uBrdfLut", 7);
+    glActiveTexture(GL_TEXTURE0);
+  }
+
   // Time, picked up by water + explode + any other animated shader.
   sh->setFloat("uTime", time);
 }

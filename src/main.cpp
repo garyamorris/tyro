@@ -6,6 +6,7 @@
 //   N          toggle geometry-shader normals overlay
 //   T          toggle wireframe overlay
 //   J          toggle directional-light shadow mapping
+//   K          toggle image-based lighting (IBL ambient + skybox)
 //   V          cycle FPS cap (120 / 60 / unlocked)
 //   F          toggle frustum culling (compare visible counts)
 //   Tab        toggle mouse capture (mouse-look only when captured)
@@ -41,6 +42,9 @@
 #include "renderer/TextRenderer.h"
 #include "renderer/Texture.h"
 #include "renderer/ProceduralTextures.h"
+#include "renderer/Cubemap.h"
+#include "renderer/IblBaker.h"
+#include "renderer/Skybox.h"
 #include "loader/ObjLoader.h"
 #include "scene/FlyCamera.h"
 #include "scene/Scene.h"
@@ -94,7 +98,18 @@ public:
     if (!text_.init())    return false;
 
     if (!shadowMap_.create(2048)) return false;
-    gpuTimer_.init({"SHADOW", "SCENE", "OVRLAY", "POSTFX", "UI"});
+    gpuTimer_.init({"SHADOW", "SCENE", "SKY", "OVRLAY", "POSTFX", "UI"});
+
+    // ---- Bake the IBL pipeline once at startup (procedural HDR sky) ------
+    {
+      // Match Scene 9's sun direction so the bright sun lines up with the
+      // shadow-casting light for visual coherence.
+      Vec3 sunDir = -normalize(Vec3{-0.4f, -1.0f, -0.3f});
+      auto skyHdr = makeProceduralSkyHDR(1024, 512, sunDir, 80.0f);
+      hdrEquirect_ = uploadEquirectHDR(skyHdr.data(), 1024, 512);
+      if (!iblBaker_.bakeFromEquirect(hdrEquirect_, 1024, 512)) return false;
+      if (!skybox_.init()) return false;
+    }
 
     // Detect NVIDIA GPU memory extension by attempting a query and inspecting
     // glGetError. Cheap and self-contained.
@@ -119,6 +134,12 @@ public:
       case FpsMode::Unlocked:  return 0.0;
       default:                 return 0.0;
     }
+  }
+
+  void onShutdown() override {
+    if (hdrEquirect_) { glDeleteTextures(1, &hdrEquirect_); hdrEquirect_ = 0; }
+    iblBaker_.destroy();
+    skybox_.destroy();
   }
 
   void onResize(int w, int h) override {
@@ -146,6 +167,7 @@ public:
       hotReloadTimer_ = 0.0f;
       for (auto& s : scene_.shaders) s->reloadIfChanged();
       text_.reloadShaderIfChanged();
+      skybox_.reloadShaderIfChanged();
     }
   }
 
@@ -223,6 +245,14 @@ public:
     scene_.shadowEnabled = haveSun && shadowsEnabled_;
     scene_.shadowMapTex  = shadowsEnabled_ ? shadowMap_.depthTexture() : 0;
 
+    // Prime IBL inputs every frame; Scene::uploadSceneUniforms binds them
+    // to TEX5/6/7 the first time each shader is touched.
+    scene_.iblEnabled         = iblEnabled_;
+    scene_.irradianceCubemap  = iblBaker_.irradianceMap().handle();
+    scene_.prefilterCubemap   = iblBaker_.prefilterMap().handle();
+    scene_.brdfLut            = iblBaker_.brdfLut();
+    scene_.prefilterMipLevels = iblBaker_.prefilterMipLevels();
+
     // ---- Pass 1: scene → sceneFbo (color + depth) ----------------------
     gpuTimer_.begin(1);
     sceneFbo_.bind();
@@ -233,8 +263,26 @@ public:
     scene_.render(visible_);
     gpuTimer_.end(1);
 
-    // ---- Pass 1b/1c: optional debug overlays ---------------------------
+    // ---- Pass 1.5: skybox -----------------------------------------------
     gpuTimer_.begin(2);
+    if (iblEnabled_) {
+      // Draw with depth=LEQUAL so the cube fills only un-rasterised pixels.
+      // Disable depth writes so the box never occludes geometry written
+      // beforehand, and re-enable culling-friendly state on the way out.
+      glDepthFunc(GL_LEQUAL);
+      glDepthMask(GL_FALSE);
+      glDisable(GL_CULL_FACE);
+      skybox_.render(iblBaker_.environmentMap(),
+                     scene_.camera.view(), scene_.camera.projection(),
+                     skyboxExposure_);
+      glEnable(GL_CULL_FACE);
+      glDepthMask(GL_TRUE);
+      glDepthFunc(GL_LESS);
+    }
+    gpuTimer_.end(2);
+
+    // ---- Pass 1b/1c: optional debug overlays ---------------------------
+    gpuTimer_.begin(3);
     if (showNormals_) {
       shNormalsGeo_->bind();
       shNormalsGeo_->setMat4 ("uViewProj", scene_.camera.viewProj());
@@ -255,17 +303,17 @@ public:
       glDisable(GL_BLEND);
       glDepthFunc(GL_LESS);
     }
-    gpuTimer_.end(2);
-
-    // ---- Pass 2: post-process chain → default ---------------------------
-    gpuTimer_.begin(3);
-    runPostFx();
     gpuTimer_.end(3);
 
-    // ---- Pass 3: text overlay onto default ------------------------------
+    // ---- Pass 2: post-process chain → default ---------------------------
     gpuTimer_.begin(4);
-    if (showOverlay_) drawOverlay();
+    runPostFx();
     gpuTimer_.end(4);
+
+    // ---- Pass 3: text overlay onto default ------------------------------
+    gpuTimer_.begin(5);
+    if (showOverlay_) drawOverlay();
+    gpuTimer_.end(5);
 
     gpuTimer_.endFrame();
 
@@ -920,6 +968,7 @@ private:
 
     edge(GLFW_KEY_T, prevT_, [&]{ showWireOverlay_ = !showWireOverlay_; });
     edge(GLFW_KEY_J, prevJ_, [&]{ shadowsEnabled_  = !shadowsEnabled_;  });
+    edge(GLFW_KEY_K, prevK_, [&]{ iblEnabled_      = !iblEnabled_;      });
     edge(GLFW_KEY_V, prevV_, [&]{
       fpsMode_ = static_cast<FpsMode>((static_cast<int>(fpsMode_) + 1)
                                       % static_cast<int>(FpsMode::COUNT));
@@ -1082,9 +1131,10 @@ private:
     text_.drawf(x, y, scale, col, "ENTITIES %d/%d", visibleCount_, (int)scene_.entities.size()); y += lh;
     text_.drawf(x, y, scale, col, "OCTREE %d NODES", scene_.totalOctreeNodes()); y += lh;
     text_.drawf(x, y, scale, col, "DRAWS %d  TRIS %d", lastDrawCalls_, lastTriangles_); y += lh;
-    text_.drawf(x, y, scale, col, "CULL %s  SHADOW %s",
+    text_.drawf(x, y, scale, col, "CULL %s  SHADOW %s  IBL %s",
                 cullingOn_       ? "ON" : "OFF",
-                shadowsEnabled_  ? "ON" : "OFF"); y += lh;
+                shadowsEnabled_  ? "ON" : "OFF",
+                iblEnabled_      ? "ON" : "OFF"); y += lh;
     text_.drawf(x, y, scale, col, "NORMALS %s  WIRE %s",
                 showNormals_     ? "ON" : "OFF",
                 showWireOverlay_ ? "ON" : "OFF"); y += lh;
@@ -1107,7 +1157,7 @@ private:
     }
 
     // Hint block, bottom-left.
-    int hy = fbHeight_ - lh * 11 - 12;
+    int hy = fbHeight_ - lh * 12 - 12;
     text_.draw("WASD MOUSE   FLY",         x, hy, scale, dim); hy += lh;
     text_.draw("TAB          CAPTURE",     x, hy, scale, dim); hy += lh;
     text_.draw("[ ]          SCENE",       x, hy, scale, dim); hy += lh;
@@ -1115,6 +1165,7 @@ private:
     text_.draw("N            NORMALS",     x, hy, scale, dim); hy += lh;
     text_.draw("T            WIREFRAME",   x, hy, scale, dim); hy += lh;
     text_.draw("J            SHADOWS",     x, hy, scale, dim); hy += lh;
+    text_.draw("K            IBL",         x, hy, scale, dim); hy += lh;
     text_.draw("V            FPS CAP",     x, hy, scale, dim); hy += lh;
     text_.draw("F            CULL",        x, hy, scale, dim); hy += lh;
     text_.draw("1-7          MATERIAL",    x, hy, scale, dim); hy += lh;
@@ -1134,6 +1185,12 @@ private:
   GpuTimer  gpuTimer_;
   Scene    scene_;
   FlyCamera flyCam_;
+
+  // IBL — baked once at startup from a procedural HDR sky.
+  IblBaker     iblBaker_;
+  Skybox       skybox_;
+  unsigned int hdrEquirect_  = 0;
+  float        skyboxExposure_ = 0.6f;
 
   // Resource quick-refs (owned by scene_).
   Mesh* meshCube_ = nullptr; Mesh* meshSphere_ = nullptr; Mesh* meshPlane_ = nullptr;
@@ -1187,6 +1244,7 @@ private:
   bool showNormals_     = false;
   bool showWireOverlay_ = false;
   bool shadowsEnabled_  = true;
+  bool iblEnabled_      = true;
   bool cullingOn_       = true;
   bool showOverlay_     = true;
   float hotReloadTimer_ = 0.0f;
@@ -1208,7 +1266,7 @@ private:
   bool prev1_=false, prev2_=false, prev3_=false, prev4_=false,
        prev5_=false, prev6_=false, prev7_=false;
   bool prevTab_=false, prevP_=false, prevN_=false, prevF_=false,
-       prevT_=false,   prevJ_=false, prevV_=false;
+       prevT_=false,   prevJ_=false, prevK_=false, prevV_=false;
   bool prevLB_=false, prevRB_=false, prevH_=false;
 };
 

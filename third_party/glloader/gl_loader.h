@@ -88,6 +88,9 @@ typedef unsigned long long GLuint64;
 #define GL_TEXTURE2       0x84C2
 #define GL_TEXTURE3       0x84C3
 #define GL_TEXTURE4       0x84C4
+#define GL_TEXTURE5       0x84C5
+#define GL_TEXTURE6       0x84C6
+#define GL_TEXTURE7       0x84C7
 
 #define GL_TIME_ELAPSED            0x88BF
 #define GL_QUERY_RESULT            0x8866
@@ -126,8 +129,29 @@ typedef unsigned long long GLuint64;
 #define GL_RGBA             0x1908
 #define GL_RGB8             0x8051
 #define GL_RGBA8            0x8058
+#define GL_RG               0x8227
+#define GL_RG16F            0x822F
+#define GL_RGB16F           0x881B
+#define GL_RGBA16F          0x881A
+#define GL_RGB32F           0x8815
+#define GL_HALF_FLOAT       0x140B
 #define GL_DEPTH_COMPONENT  0x1902
 #define GL_DEPTH_COMPONENT24 0x81A6
+
+#define GL_TEXTURE_CUBE_MAP             0x8513
+#define GL_TEXTURE_CUBE_MAP_SEAMLESS    0x884F
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_X  0x8515
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_X  0x8516
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Y  0x8517
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Y  0x8518
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Z  0x8519
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Z  0x851A
+#define GL_TEXTURE_WRAP_R               0x8072
+#define GL_TEXTURE_BASE_LEVEL           0x813C
+#define GL_TEXTURE_MAX_LEVEL            0x813D
+#define GL_TEXTURE_MIN_LOD              0x813A
+#define GL_TEXTURE_MAX_LOD              0x813B
+#define GL_TEXTURE_LOD_BIAS             0x8501
 
 #define GL_FRAMEBUFFER       0x8D40
 #define GL_RENDERBUFFER      0x8D41
@@ -214,7 +238,8 @@ typedef unsigned long long GLuint64;
   X(void,   GetQueryObjectui64v,   (GLuint, GLenum, GLuint64*)) \
   X(void,   DrawBuffer,            (GLenum)) \
   X(void,   ReadBuffer,            (GLenum)) \
-  X(void,   PolygonOffset,         (GLfloat, GLfloat))
+  X(void,   PolygonOffset,         (GLfloat, GLfloat)) \
+  X(void,   DepthMask,              (GLboolean))
 
 #define X(ret, name, args) typedef ret (APIENTRYP PFN_gl##name) args; extern PFN_gl##name gl##name;
 #ifndef APIENTRY

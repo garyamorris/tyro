@@ -30,6 +30,15 @@ public:
   unsigned int shadowMapTex   = 0;
   bool         shadowEnabled  = false;
 
+  // IBL inputs (set externally by the app once the bake is done). When
+  // iblEnabled is true, the PBR shader replaces its constant ambient term
+  // with a full split-sum IBL contribution.
+  unsigned int irradianceCubemap = 0;
+  unsigned int prefilterCubemap  = 0;
+  unsigned int brdfLut           = 0;
+  int          prefilterMipLevels = 5;
+  bool         iblEnabled        = false;
+
   // Wall-clock time in seconds, set by the app. Shaders sample this for
   // animation (water displacement, explode pulse, scrolling UVs, etc.).
   float        time           = 0.0f;

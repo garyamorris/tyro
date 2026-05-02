@@ -41,6 +41,13 @@ uniform sampler2D uShadowMap;
 uniform mat4      uLightVP;
 uniform float     uShadowEnabled;
 
+// Image-based lighting (split-sum). Bound on TEX5/6/7 by Scene when iblEnabled.
+uniform samplerCube uIrradianceMap;
+uniform samplerCube uPrefilterMap;
+uniform sampler2D   uBrdfLut;
+uniform float       uIblEnabled;
+uniform float       uPrefilterMaxLod;
+
 out vec4 FragColor;
 
 // ---- Cook-Torrance terms --------------------------------------------------
@@ -59,6 +66,11 @@ float G_Smith(float NdV, float NdL, float roughness) {
 }
 vec3 F_Schlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+// Roughness-aware Fresnel used for the IBL ambient term so that rough
+// surfaces don't get over-bright Fresnel highlights at grazing angles.
+vec3 F_SchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
 // ---- PCF shadow (matches phong_lit's helper) ------------------------------
@@ -151,7 +163,28 @@ void main() {
         Lo += contrib;
     }
 
-    vec3 ambient = vec3(0.03) * albedo;
+    vec3 ambient;
+    if (uIblEnabled > 0.5) {
+        // Split-sum IBL (Karis 2014).
+        //   diffuse  = irradiance(N) * albedo * kD
+        //   specular = prefilter(R, roughness) * (F * brdf.x + brdf.y)
+        vec3 R = reflect(-V, N);
+        vec3 F  = F_SchlickRoughness(NdV, F0, roughness);
+        vec3 kS = F;
+        vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+
+        vec3 irradiance = texture(uIrradianceMap, N).rgb;
+        vec3 diffuse    = irradiance * albedo;
+
+        float lod = roughness * uPrefilterMaxLod;
+        vec3 prefiltered = textureLod(uPrefilterMap, R, lod).rgb;
+        vec2 brdf = texture(uBrdfLut, vec2(NdV, roughness)).rg;
+        vec3 specular = prefiltered * (F * brdf.x + brdf.y);
+
+        ambient = kD * diffuse + specular;
+    } else {
+        ambient = vec3(0.03) * albedo;
+    }
     vec3 color = ambient + Lo + uEmissive;
 
     // ACES tonemap + sRGB curve.

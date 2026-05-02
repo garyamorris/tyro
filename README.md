@@ -38,6 +38,17 @@ showcase the feature surface.
   tangents (computed in the OBJ loader and primitive generators), and ACES
   tonemap. Same shader handles uniform-color, textured-albedo, and
   metallic-roughness-mapped variants.
+- **IBL** — image-based lighting via Karis 2014 split-sum approximation. A
+  procedural HDR sky is generated at startup (gradient + bright sun disc),
+  then baked into: an environment cubemap (equirect → 512² × 6, with mips),
+  a 32² diffuse irradiance cubemap (cosine-hemisphere convolution), a
+  128² × 5-mip prefiltered radiance cubemap (GGX importance-sampled, mip-
+  per-roughness), and a 512² RG16F BRDF LUT (Hammersley + Schlick G_Smith).
+  The PBR shader picks up the ambient term as
+  `kD·irradiance·albedo + prefilter·(F·brdf.x + brdf.y)`, with a
+  roughness-aware Fresnel to avoid grazing-angle hot edges. A skybox pass
+  renders the full env cube as background after the scene pass. Toggle
+  with `K`.
 - **Frame buffers** with selectable depth attachments (none / renderbuffer /
   sampleable depth texture)
 - **Screen-space post-process chain** (cycle with `P`):
@@ -77,7 +88,7 @@ Cycle with `[` and `]`:
 | 6 | Water Pond | Animated water plane (sin-sum vertex displacement + Fresnel) with floating teapot/cow |
 | 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader |
 | 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders |
-| 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX with normal mapping + ACES tonemap |
+| 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox |
 
 ## Hotkeys
 
@@ -91,6 +102,7 @@ Cycle with `[` and `]`:
 | `N` | Toggle geometry-shader normals overlay |
 | `T` | Toggle wireframe overlay |
 | `J` | Toggle directional shadow mapping |
+| `K` | Toggle image-based lighting (IBL ambient + skybox) |
 | `V` | Cycle FPS cap (120 / 60 / unlocked) |
 | `F` | Toggle frustum culling (compare visible counts) |
 | `H` | Toggle stats overlay |
@@ -126,7 +138,8 @@ tyro/
 │   ├── window/Window   - GLFW wrapper, mouse capture, GL context
 │   ├── math/           - Math.h, AABB.h, Frustum.h
 │   ├── renderer/       - Shader, Mesh, FrameBuffer, ShadowMap, Texture,
-│   │                    GpuTimer, Primitives, ProceduralTextures, TextRenderer
+│   │                    GpuTimer, Primitives, ProceduralTextures, TextRenderer,
+│   │                    Cubemap, IblBaker, Skybox
 │   ├── scene/          - Camera, FlyCamera, Light, Material, Entity,
 │   │                    Scene, Octree
 │   └── loader/ObjLoader - hand-written .obj parser (v / vn / vt / f, fan-tri)
