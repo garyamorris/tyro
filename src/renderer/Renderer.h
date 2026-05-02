@@ -3,7 +3,11 @@
 
 namespace tyro {
 
-// Light-weight wrapper for state we set per-frame.
+// Renderer — thin wrapper for per-frame GL state we toggle from C++.
+//
+// Just enough to keep raw glEnable / glClear / glViewport calls out of
+// application code. The "real" rendering is split across Scene::render
+// (the main pass), Skybox, the post-FX shaders, and TextRenderer.
 class Renderer {
 public:
   void init();

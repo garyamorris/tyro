@@ -7,6 +7,22 @@
 
 namespace tyro {
 
+// Mesh — VAO + VBO + EBO bundle for indexed triangle geometry.
+//
+// Vertex layout is fixed: position + normal + uv + tangent (44 bytes).
+// upload() ships verts/indices to GPU; draw() binds the VAO, issues
+// glDrawElements, and bumps the per-frame counters in renderStats() (which
+// the on-screen stats overlay reads).
+//
+// computeTangents() (free function) derives per-vertex tangents from
+// triangle UV gradients (Möller 1996), Gram-Schmidt-orthogonalised against
+// the smooth normal. Primitives and the OBJ loader call it so PBR normal
+// mapping has a usable TBN basis.
+//
+// FullscreenTriangle is a degenerate "mesh" with no buffer — vertices are
+// fabricated from gl_VertexID inside blit.vert. Used for every post-FX pass
+// and the IBL BRDF LUT bake.
+
 struct RenderStats {
   int drawCalls = 0;
   int triangles = 0;

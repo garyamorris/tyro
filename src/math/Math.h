@@ -1,4 +1,10 @@
-// tyro math: hand-rolled, column-major (matches OpenGL/GLSL).
+// tyro math — hand-rolled vec / mat / quat in one header.
+//
+// Column-major matrix layout matches OpenGL / GLSL, so Mat4::data() can be
+// passed straight to glUniformMatrix4fv(..., GL_FALSE, data) with no
+// transpose. Scope is "what the renderer actually needs": Vec2/3/4, Mat3/4,
+// Quat, lookAt / perspective / ortho, and inverseTranspose for the normal
+// matrices a vertex shader uses to transform normals under non-uniform scale.
 #pragma once
 
 #include <cmath>

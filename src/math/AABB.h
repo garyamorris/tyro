@@ -3,6 +3,13 @@
 
 namespace tyro {
 
+// AABB — axis-aligned bounding box (min/max corners, in some space).
+//
+// Built incrementally with expand(); transformed() applies a 4x4 using the
+// "absolute-value-of-rotation" trick (Akenine-Möller, Real-Time Rendering)
+// so the result stays axis-aligned even after the underlying object rotates.
+// Used for entity bounds, octree node bounds, and frustum culling.
+
 struct AABB {
   Vec3 min{0,0,0};
   Vec3 max{0,0,0};
