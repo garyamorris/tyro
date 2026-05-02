@@ -2,10 +2,17 @@
 
 A small, opinionated 3D rendering engine in modern C++17 / OpenGL 3.3 core.
 
+**tyro is a teaching project.** Its goal is to show — in the smallest amount
+of code that's still recognisably a real engine — how a renderer fits
+together: the frame loop, the scene graph, the shader pipeline, lighting,
+shadows, IBL, and post-processing. It is not meant to compete with engines
+you'd ship a game on; it's meant to be readable end-to-end. Each demo scene
+is built to isolate a single concept so you can match code to pixels.
+
 Built from scratch — including a custom math library, a hand-rolled GL function
 loader, a procedural mesh library, an octree, frustum culling, shadow mapping,
 hot-reloadable shaders, GPU timer queries, screen-space post effects, and a
-text overlay driven by an embedded bitmap font. Eight cycleable demo scenes
+text overlay driven by an embedded bitmap font. Ten cycleable demo scenes
 showcase the feature surface.
 
 ## Features
@@ -25,7 +32,7 @@ showcase the feature surface.
 - Multi-stage shader pipeline (vertex / geometry / fragment) — geometry-shader
   examples include normals overlay, wireframe via barycentric coords, and an
   exploding mesh effect
-- 20+ unique materials wired across 9 scenes:
+- 20+ unique materials wired across 10 scenes:
   - Phong (warm + cool), Toon (cel-shaded), Fresnel rim, Unlit matcap, Wireframe,
     Water (animated), Explode (geometry shader), Marble / Wood / Brick / Hex
     (procedural patterns), Iridescent, Hologram, **PBR** (Cook-Torrance GGX with
@@ -78,18 +85,31 @@ showcase the feature surface.
 
 Cycle with `[` and `]`:
 
-| # | Name | What it shows |
-|---|---|---|
-| 1 | Materials Showcase | Mesh × material grid: 5 mesh types × 4 materials |
-| 2 | Light Garden | 6 colored point lights orbiting on a checker ground |
-| 3 | Octree Stress | 512 entities scattered, demonstrates octree+frustum culling |
-| 4 | Effects Demo | A few hero meshes with strong contrast for post-process effects |
-| 5 | Showcase Bay | Teapot + Spot the cow + primitives, shadowed |
-| 6 | Water Pond | Animated water plane (sin-sum vertex displacement + Fresnel) with floating teapot/cow |
-| 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader |
-| 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders |
-| 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox |
-| 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight, PCF shadows, IBL |
+| # | Name | What it shows | Teaches |
+|---|---|---|---|
+| 1 | Materials Showcase | Mesh × material grid: 5 mesh types × 4 materials | how the same geometry looks under different BRDFs |
+| 2 | Light Garden | 6 colored point lights orbiting on a checker ground | multi-light Phong with attenuation |
+| 3 | Octree Stress | 512 entities scattered, demonstrates octree+frustum culling | broad-phase culling — toggle with `F` to see the cost |
+| 4 | Effects Demo | A few hero meshes with strong contrast for post-process effects | screen-space post-FX as a chain of fullscreen passes |
+| 5 | Showcase Bay | Teapot + Spot the cow + primitives, shadowed | directional shadow mapping + PCF (toggle `J`) |
+| 6 | Water Pond | Animated water plane (sin-sum vertex displacement + Fresnel) with floating teapot/cow | vertex displacement + Fresnel + per-pixel normals from finite differences |
+| 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader | the geometry shader stage |
+| 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders | texture sampling vs procedural fragment shaders |
+| 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox | physically-based shading parameters in isolation (metallic ↔ roughness) |
+| 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight, PCF shadows, IBL | everything together — shadows, IBL, multiple materials, lights, post-FX |
+
+## Gallery
+
+<!-- Drop captures into docs/img/. See docs/img/README.md for filenames + sizes. -->
+
+<p align="center">
+  <img src="docs/img/atrium.png"       alt="Atrium scene"      width="48%"/>
+  <img src="docs/img/pbr_lab.png"      alt="PBR Lab"           width="48%"/>
+</p>
+<p align="center">
+  <img src="docs/img/light_garden.png" alt="Light Garden"      width="48%"/>
+  <img src="docs/img/water_pond.png"   alt="Water Pond"        width="48%"/>
+</p>
 
 ## Hotkeys
 
@@ -112,9 +132,24 @@ Cycle with `[` and `]`:
 
 ## Build
 
-Requires Windows + Visual Studio 2019 (or Build Tools), CMake 3.20+, an
-internet connection on first configure (CMake `FetchContent` pulls GLFW 3.4
-once).
+**Common prerequisites**
+
+- CMake 3.20+
+- A C++17 compiler
+- An OpenGL 3.3 core driver
+- Internet on first configure — CMake `FetchContent` clones GLFW 3.4 once
+
+The post-build step copies `shaders/` and `assets/` next to the binary so the
+demo can find them via relative paths.
+
+> Only the Windows path is regularly tested. Linux/macOS instructions are
+> provided in good faith based on the build's portability (the only Windows-
+> specific link is `opengl32` in `CMakeLists.txt`), but they are **unverified**
+> — reports welcome.
+
+### Windows (verified)
+
+Visual Studio 2019 (or Build Tools):
 
 ```pwsh
 cmake -S . -B build -G "Visual Studio 16 2019" -A x64
@@ -122,8 +157,33 @@ cmake --build build --config Release
 build\Release\tyro.exe
 ```
 
-The post-build step copies `shaders/` and `assets/` next to the binary so the
-demo can find them via relative paths.
+### Linux (unverified)
+
+Install GLFW's X11/Wayland system dependencies first. On Debian / Ubuntu:
+
+```sh
+sudo apt install libx11-dev libxrandr-dev libxinerama-dev \
+                 libxcursor-dev libxi-dev libgl1-mesa-dev
+```
+
+Then:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/tyro
+```
+
+### macOS (unverified)
+
+Apple deprecated OpenGL in 10.14, but the GL 3.3 core profile still runs on
+current macOS. Xcode command-line tools required.
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/tyro
+```
 
 ## Project layout
 
@@ -131,8 +191,9 @@ demo can find them via relative paths.
 tyro/
 ├── CMakeLists.txt
 ├── README.md, LICENSE, ARCHITECTURE.md
-├── assets/             - OBJ models (cube, teapot, spot-the-cow)
-├── shaders/            - GLSL: vert / frag / geom (~30 files)
+├── assets/             - OBJ models (teapot, spot-the-cow) — not checked in;
+│                        see Troubleshooting
+├── shaders/            - GLSL: vert / frag / geom (51 files)
 ├── src/
 │   ├── main.cpp        - the 8-scene demo, hotkeys, render orchestration
 │   ├── core/Engine     - game loop, frame limiter, fixed timestep
@@ -163,6 +224,25 @@ shaders, materials, entities, and lights; before the scene pass we extract a
 view-projection frustum (Gribb-Hartmann) and cull entities through a static
 octree. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
 
+## Where to start reading
+
+If you've cloned this and want to learn from it, a suggested path:
+
+1. **Build and run it.** Cycle scenes with `[` / `]` and toggle features
+   (`F` culling, `J` shadows, `K` IBL, `P` post-FX) so you can match each
+   bit of code to a visible difference.
+2. [`src/main.cpp`](src/main.cpp) — the demo. Each scene is built imperatively;
+   this is where meshes, materials, lights, and entities are wired up.
+3. [`src/core/Engine.cpp`](src/core/Engine.cpp) — the frame loop:
+   poll → fixed-timestep update(s) → render → swap.
+4. [`src/scene/Scene.cpp`](src/scene/Scene.cpp) — how per-frame uniforms are
+   uploaded once per shader and how entities are culled before drawing.
+5. [`shaders/phong_lit.frag`](shaders/phong_lit.frag) — start here for lit
+   shading. Then [`shaders/pbr.frag`](shaders/pbr.frag) for the full
+   Cook-Torrance + IBL version.
+6. [`ARCHITECTURE.md`](ARCHITECTURE.md) — full frame pipeline + subsystem
+   reference once you want the bird's-eye view.
+
 ## Acknowledgements
 
 - **GLFW 3.4** — window + input + GL context creation. Pulled via CMake
@@ -175,6 +255,51 @@ octree. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
   repository.
 - The hand-rolled GL loader, math library, OBJ parser, octree, post-process
   shaders, bitmap font, and everything in `src/` are original code.
+
+## Troubleshooting
+
+**`assets/` directory missing — build's post-build copy fails, or the demo
+exits with "failed to open assets/teapot.obj"**
+
+The `assets/` folder is not currently checked into the repo, but
+`src/main.cpp` loads `assets/teapot.obj` and `assets/spot.obj` at startup,
+and `CMakeLists.txt` copies the directory next to the binary as a post-build
+step. You have two options:
+
+- Obtain the models (links in [Acknowledgements](#acknowledgements)) and
+  place them at `assets/teapot.obj` and `assets/spot.obj`.
+- Or comment out the OBJ loads in `src/main.cpp` (search for `loadObjMesh`)
+  to run on the procedural primitives only.
+
+**CMake `FetchContent` fails on first configure (offline / firewall)**
+
+The first configure clones GLFW 3.4 from GitHub. If your environment blocks
+this, pre-clone `https://github.com/glfw/glfw.git` at tag `3.4` and either
+point `FetchContent_Declare` at the local checkout, or vendor it under
+`third_party/` like `stb`.
+
+**Black window / "OpenGL 3.3 not supported"**
+
+The driver is too old, or you've fallen back to software rendering. Update
+GPU drivers. On Linux, confirm:
+
+```sh
+glxinfo | grep "OpenGL core profile version"
+```
+
+reports 3.3 or higher.
+
+**Shaders fail to load at runtime**
+
+The binary expects `shaders/` and `assets/` in its working directory (the
+post-build step in `CMakeLists.txt` copies them next to the executable). Run
+from the build output directory, not the source root.
+
+**Hot-reload doesn't pick up shader edits**
+
+The 250 ms file-watcher polls the *copied* `shaders/` next to the binary,
+not the source-tree `shaders/`. Edit the copy, re-run the build to refresh
+it, or replace the copy with a symlink to the source tree.
 
 ## License
 

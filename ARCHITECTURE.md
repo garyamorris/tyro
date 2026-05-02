@@ -3,6 +3,11 @@
 Reference document for the layout of the engine. For build / run / hotkeys,
 see [README.md](README.md).
 
+> **tyro is a teaching project.** This document is structured so you can read
+> top-to-bottom and come away with a working mental model of a simple forward
+> renderer. Each subsystem section starts with a *Learning focus:* line — the
+> single idea that section exists to demonstrate.
+
 ## Frame pipeline
 
 ```
@@ -70,6 +75,10 @@ see [README.md](README.md).
 
 ### `core/Engine`
 
+*Learning focus:* the canonical game loop — decoupling fixed-timestep
+simulation from variable-rate rendering, and capping frame rate without
+busy-waiting the CPU.
+
 `Engine::run(Application&, EngineConfig)` drives the loop. It owns the
 `Window`, then polls / updates / renders / swaps. The frame-rate cap is
 implemented as a hybrid sleep-and-spin in `waitUntil` — bulk
@@ -83,11 +92,18 @@ At 60 FPS render, two updates per render so animations stay smooth.
 
 ### `window/Window`
 
+*Learning focus:* the boundary between the engine and the OS — what GLFW
+hands you (a GL context, input, framebuffer-size events) and nothing more.
+
 Thin GLFW wrapper. Creates a 3.3 core context, disables vsync (the Engine
 caps frame rate), exposes cursor capture for mouse-look, and owns the
 shared-context refcount.
 
 ### `math/`
+
+*Learning focus:* the minimum viable graphics math — column-major matrices
+that match GL's memory layout, AABBs, and frustum-plane extraction. Read
+this before the renderer.
 
 - `Math.h` — `Vec2/3/4`, `Mat3/4`, `Quat`. Column-major matrix layout matches
   GL/GLSL so we can pass `glUniformMatrix4fv(..., GL_FALSE, m.data())` with no
@@ -100,6 +116,12 @@ shared-context refcount.
   technique.
 
 ### `renderer/`
+
+*Learning focus:* the GPU resource wrappers. Each class owns one OpenGL
+object (program, buffer, texture, framebuffer) and follows the same
+"create once, bind per draw" pattern. `Shader` and `IblBaker` are the most
+algorithmically interesting; the rest are thin RAII wrappers worth reading
+to see what GL minimally requires.
 
 | Type | Responsibility |
 |---|---|
@@ -119,6 +141,11 @@ shared-context refcount.
 
 ### `scene/`
 
+*Learning focus:* the data side of a renderer — what the GPU resources
+in `renderer/` are *for*. Cameras produce view/projection matrices, lights
+go into uniform arrays, entities pair a mesh with a material and a
+transform, and `Scene` stitches them together for `Octree`-driven culling.
+
 | Type | Responsibility |
 |---|---|
 | `Camera` | pos / target / up + fovYDeg / aspect / near / far → view, proj, frustum |
@@ -130,6 +157,10 @@ shared-context refcount.
 | `Scene` | Owns mesh / shader / material vectors; entities + lights; uploads per-frame uniforms (camera, lights, shadow, time) once per shader |
 
 ### `loader/ObjLoader`
+
+*Learning focus:* the format every graphics learner reads first. A small
+parser is enough — fan-triangulate, dedupe `(v, vn, vt)` triples, fall
+back to face-averaged normals when the file has none.
 
 Hand-written. Handles `v / vn / vt / f`, fan-triangulates n-gons, dedupes
 `(v, vn, vt)` triples into an index buffer, computes face-averaged normals
