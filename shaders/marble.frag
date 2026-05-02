@@ -3,6 +3,7 @@
 #define MAX_LIGHTS 8
 #define LIGHT_DIRECTIONAL 0
 #define LIGHT_POINT       1
+#define LIGHT_SPOT        2
 
 struct Light {
     int   type;
@@ -11,6 +12,8 @@ struct Light {
     vec3  color;
     float intensity;
     float radius;
+    float cutoffCos;
+    float outerCutoffCos;
 };
 
 in vec3 vWorldPos;
@@ -66,6 +69,14 @@ void main() {
             Ldir = d / max(l, 1e-4);
             float r = clamp(1.0 - l / max(uLights[i].radius, 1e-4), 0.0, 1.0);
             atten = r * r;
+            if (uLights[i].type == LIGHT_SPOT) {
+                float cosTheta = dot(-Ldir, normalize(uLights[i].direction));
+                float spot = clamp(
+                    (cosTheta - uLights[i].outerCutoffCos)
+                    / max(uLights[i].cutoffCos - uLights[i].outerCutoffCos, 1e-4),
+                    0.0, 1.0);
+                atten *= spot;
+            }
         }
         vec3 H = normalize(Ldir + V);
         float diff = max(dot(N, Ldir), 0.0);

@@ -97,6 +97,32 @@ void DebugDraw::wireFrustum(const Vec3 corners[8], Vec3 color) {
   for (auto& e : edges) line(corners[e[0]], corners[e[1]], color);
 }
 
+void DebugDraw::cone(Vec3 apex, Vec3 axis, float halfAngleDeg, float length,
+                     Vec3 color, int segments) {
+  if (segments < 4) segments = 4;
+  Vec3 a = normalize(axis);
+  float radius = length * std::tan(halfAngleDeg * kPi / 180.0f);
+  Vec3 baseCenter = apex + a * length;
+
+  // Build a basis perpendicular to the axis. The fallback handles the
+  // degenerate case where axis ≈ ±Y.
+  Vec3 worldUp = (std::abs(a.y) > 0.99f) ? Vec3{1, 0, 0} : Vec3{0, 1, 0};
+  Vec3 right   = normalize(cross(a, worldUp));
+  Vec3 up      = cross(right, a);
+
+  // Walk the base circle as line segments, and emit generator rays from
+  // apex on a fixed cadence so the cone reads as 3D from any angle.
+  int rayEvery = std::max(1, segments / 4);
+  Vec3 prev{};
+  for (int i = 0; i <= segments; ++i) {
+    float t = (2.0f * kPi * float(i)) / float(segments);
+    Vec3 p = baseCenter + (right * std::cos(t) + up * std::sin(t)) * radius;
+    if (i > 0) line(prev, p, color);
+    if (i % rayEvery == 0) line(apex, p, color);
+    prev = p;
+  }
+}
+
 void DebugDraw::flush(const Mat4& viewProj) {
   if (verts_.empty() || !shader_) return;
 

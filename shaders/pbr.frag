@@ -20,6 +20,7 @@
 #define MAX_LIGHTS 8
 #define LIGHT_DIRECTIONAL 0
 #define LIGHT_POINT       1
+#define LIGHT_SPOT        2
 
 struct Light {
     int   type;
@@ -28,6 +29,8 @@ struct Light {
     vec3  color;
     float intensity;
     float radius;
+    float cutoffCos;       // spot only: inner cone cosine
+    float outerCutoffCos;  // spot only: outer cone cosine
 };
 
 in vec3 vWorldPos;
@@ -146,11 +149,22 @@ void main() {
             L = normalize(-uLights[i].direction);
             radiance = uLights[i].color * uLights[i].intensity;
         } else {
+            // Point + Spot share the position-based attenuation; spot adds
+            // a smoothstep cone falloff between cutoffCos and outerCutoffCos.
             vec3 d = uLights[i].position - vWorldPos;
             float dist = length(d);
             L = d / max(dist, 1e-4);
             float t = clamp(1.0 - dist / max(uLights[i].radius, 1e-4), 0.0, 1.0);
-            radiance = uLights[i].color * uLights[i].intensity * (t * t);
+            float atten = t * t;
+            if (uLights[i].type == LIGHT_SPOT) {
+                float cosTheta = dot(-L, normalize(uLights[i].direction));
+                float spot = clamp(
+                    (cosTheta - uLights[i].outerCutoffCos)
+                    / max(uLights[i].cutoffCos - uLights[i].outerCutoffCos, 1e-4),
+                    0.0, 1.0);
+                atten *= spot;
+            }
+            radiance = uLights[i].color * uLights[i].intensity * atten;
         }
         vec3 H = normalize(V + L);
         float NdL = max(dot(N, L), 0.0);

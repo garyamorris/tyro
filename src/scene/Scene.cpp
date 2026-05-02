@@ -2,6 +2,7 @@
 #include "gl_loader.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -79,6 +80,11 @@ void Scene::uploadSceneUniforms(Shader* sh) {
     sh->setVec3 (u("color"),     L.color);
     sh->setFloat(u("intensity"), L.intensity);
     sh->setFloat(u("radius"),    L.radius);
+    // Cone half-angle cosines, used by Spot lights only. Storing cosines
+    // on the GPU side lets the shader compare against dot(L, -spotDir)
+    // directly without needing a per-pixel acos().
+    sh->setFloat(u("cutoffCos"),      std::cos(L.innerDeg * kPi / 180.0f));
+    sh->setFloat(u("outerCutoffCos"), std::cos(L.outerDeg * kPi / 180.0f));
   }
 
   // Shadow uniforms — only bind the texture if a shadow map is provided.
