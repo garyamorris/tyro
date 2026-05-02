@@ -99,7 +99,7 @@ shared-context refcount.
 | Type | Responsibility |
 |---|---|
 | `Shader` | Vert+frag (+ optional geom) program, uniform setters, **hot-reload** via cached file paths + modtimes |
-| `Mesh` | VAO+VBO+EBO, vertex layout (pos + normal + uv = 32 bytes), per-frame draw-call/triangle counters |
+| `Mesh` | VAO+VBO+EBO, vertex layout (pos + normal + uv + tangent = 44 bytes), per-frame draw-call/triangle counters; `computeTangents()` (MOLLER 1996) used by primitives + OBJ loader |
 | `FullscreenTriangle` | Lazy-init VAO, drives 3-vertex draw of a fullscreen tri (UVs derived in shader from `gl_VertexID`) |
 | `FrameBuffer` | Color texture + selectable depth (`None` / `Renderbuffer` / sampleable `Texture`) |
 | `ShadowMap` | Depth-only FBO with `glDrawBuffer(GL_NONE)` and `glReadBuffer(GL_NONE)` |
@@ -131,6 +131,8 @@ when the OBJ has none.
 
 ```
 shaders/
+├── pbr.{vert,frag}          - Cook-Torrance GGX, Schlick F, Smith G,
+│                              normal mapping via TBN, ACES tonemap, PCF shadow
 ├── phong_lit.{vert,frag}    - main lit shader, texture-aware, PCF shadow
 ├── unlit.{vert,frag}        - normal-tinted matcap-ish
 ├── toon.{vert,frag}         - 3-band cel + rim

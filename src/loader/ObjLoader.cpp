@@ -126,6 +126,7 @@ bool loadObj(const char* path,
       outIndices.push_back(emit(face[i + 1]));
     }
   }
+  computeTangents(outVerts, outIndices);
   return true;
 }
 

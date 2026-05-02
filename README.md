@@ -25,13 +25,19 @@ showcase the feature surface.
 - Multi-stage shader pipeline (vertex / geometry / fragment) — geometry-shader
   examples include normals overlay, wireframe via barycentric coords, and an
   exploding mesh effect
-- 14 unique materials wired across 8 scenes:
+- 20+ unique materials wired across 9 scenes:
   - Phong (warm + cool), Toon (cel-shaded), Fresnel rim, Unlit matcap, Wireframe,
     Water (animated), Explode (geometry shader), Marble / Wood / Brick / Hex
-    (procedural patterns), Iridescent, Hologram
+    (procedural patterns), Iridescent, Hologram, **PBR** (Cook-Torrance GGX with
+    metallic / roughness / normal maps and ACES tonemap)
 - **Texturing** — `Texture` class via `stb_image`; texture-aware Phong shader;
   6 procedural textures generated and uploaded at startup (checker / brick /
-  wood / marble / noise / hex)
+  wood / marble / noise / hex), plus a Sobel-derived rough-surface normal map
+- **PBR** — physically-based shading with Cook-Torrance GGX, Schlick Fresnel,
+  Smith G, energy-conserving kS/kD split, normal mapping via per-vertex
+  tangents (computed in the OBJ loader and primitive generators), and ACES
+  tonemap. Same shader handles uniform-color, textured-albedo, and
+  metallic-roughness-mapped variants.
 - **Frame buffers** with selectable depth attachments (none / renderbuffer /
   sampleable depth texture)
 - **Screen-space post-process chain** (cycle with `P`):
@@ -71,6 +77,7 @@ Cycle with `[` and `]`:
 | 6 | Water Pond | Animated water plane (sin-sum vertex displacement + Fresnel) with floating teapot/cow |
 | 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader |
 | 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders |
+| 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX with normal mapping + ACES tonemap |
 
 ## Hotkeys
 

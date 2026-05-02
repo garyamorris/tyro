@@ -17,7 +17,13 @@ struct Vertex {
   Vec3 position;
   Vec3 normal;
   Vec2 uv;
+  Vec3 tangent { 1.0f, 0.0f, 0.0f };  // default placeholder; computeTangents fills it
 };
+
+// Recompute tangents per vertex from triangle UV gradients (MOLLER 1996).
+// Result is Gram-Schmidt orthogonalised against the existing smooth normal.
+void computeTangents(std::vector<Vertex>& verts,
+                     const std::vector<uint32_t>& indices);
 
 class Mesh {
 public:

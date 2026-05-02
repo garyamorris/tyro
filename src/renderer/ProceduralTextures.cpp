@@ -205,4 +205,33 @@ std::vector<std::uint8_t> makeHexTex(int size) {
   return buf;
 }
 
+std::vector<std::uint8_t> makeRoughNormalMap(int size, float strength) {
+  std::vector<std::uint8_t> buf(size * size * 4);
+  // Heightmap is fbm sampled at the texel; sample wrapped neighbours to
+  // produce a tileable normal map.
+  auto sampleH = [&](int x, int y) {
+    x = ((x % size) + size) % size;
+    y = ((y % size) + size) % size;
+    return fbm(x * 0.04f, y * 0.04f, 5);
+  };
+  for (int y = 0; y < size; ++y) {
+    for (int x = 0; x < size; ++x) {
+      // Central differences -> tangent-space gradient.
+      float dx = (sampleH(x + 1, y) - sampleH(x - 1, y)) * strength;
+      float dy = (sampleH(x, y + 1) - sampleH(x, y - 1)) * strength;
+      // Normal in tangent space: (-dx, -dy, 1) normalised.
+      float nx = -dx, ny = -dy, nz = 1.0f;
+      float len = std::sqrt(nx*nx + ny*ny + nz*nz);
+      if (len < 1e-8f) len = 1.0f;
+      nx /= len; ny /= len; nz /= len;
+      // [-1,1] -> [0,1] -> byte
+      put(buf, (y * size + x) * 4,
+          nx * 0.5f + 0.5f,
+          ny * 0.5f + 0.5f,
+          nz * 0.5f + 0.5f);
+    }
+  }
+  return buf;
+}
+
 } // namespace tyro

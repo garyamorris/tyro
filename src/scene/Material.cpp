@@ -11,9 +11,12 @@ void Material::apply() const {
   shader->setVec3 ("uAlbedo",    albedo);
   shader->setVec3 ("uEmissive",  emissive);
   shader->setFloat("uShininess", shininess);
+  shader->setFloat("uMetallic",  metallic);
+  shader->setFloat("uRoughness", roughness);
   shader->setVec2 ("uUvScale",   uvScale);
   shader->setVec2 ("uUvOffset",  uvOffset);
 
+  // Albedo on TEX0
   if (albedoTex && albedoTex->valid()) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, albedoTex->handle());
@@ -22,6 +25,26 @@ void Material::apply() const {
   } else {
     shader->setFloat("uHasAlbedo", 0.0f);
   }
+  // Normal on TEX1
+  if (normalTex && normalTex->valid()) {
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, normalTex->handle());
+    shader->setInt  ("uNormalTex", 1);
+    shader->setFloat("uHasNormal", 1.0f);
+  } else {
+    shader->setFloat("uHasNormal", 0.0f);
+  }
+  // Metallic-roughness on TEX2
+  if (mrTex && mrTex->valid()) {
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, mrTex->handle());
+    shader->setInt  ("uMRTex", 2);
+    shader->setFloat("uHasMR", 1.0f);
+  } else {
+    shader->setFloat("uHasMR", 0.0f);
+  }
+  // Restore TEX0 active for callers that don't manage units.
+  glActiveTexture(GL_TEXTURE0);
 }
 
 } // namespace tyro

@@ -1,12 +1,48 @@
 #include "Mesh.h"
 #include "gl_loader.h"
 
+#include <cmath>
+
 namespace tyro {
 
 namespace {
 RenderStats g_stats;
 }
 RenderStats& renderStats() { return g_stats; }
+
+void computeTangents(std::vector<Vertex>& verts,
+                     const std::vector<uint32_t>& indices) {
+  std::vector<Vec3> accum(verts.size(), Vec3{0,0,0});
+  for (size_t i = 0; i + 2 < indices.size(); i += 3) {
+    uint32_t i0 = indices[i], i1 = indices[i+1], i2 = indices[i+2];
+    const Vec3& p0 = verts[i0].position;
+    const Vec3& p1 = verts[i1].position;
+    const Vec3& p2 = verts[i2].position;
+    Vec2 u0 = verts[i0].uv, u1 = verts[i1].uv, u2 = verts[i2].uv;
+    Vec3 e1 = p1 - p0;
+    Vec3 e2 = p2 - p0;
+    Vec2 d1 = u1 - u0;
+    Vec2 d2 = u2 - u0;
+    float denom = d1.x * d2.y - d2.x * d1.y;
+    if (std::abs(denom) < 1e-8f) continue;
+    float r = 1.0f / denom;
+    Vec3 t {
+      (d2.y * e1.x - d1.y * e2.x) * r,
+      (d2.y * e1.y - d1.y * e2.y) * r,
+      (d2.y * e1.z - d1.y * e2.z) * r,
+    };
+    accum[i0] = accum[i0] + t;
+    accum[i1] = accum[i1] + t;
+    accum[i2] = accum[i2] + t;
+  }
+  for (size_t i = 0; i < verts.size(); ++i) {
+    Vec3 n = verts[i].normal;
+    Vec3 t = accum[i];
+    Vec3 ortho = t - n * dot(n, t);
+    float L = length(ortho);
+    verts[i].tangent = (L > 1e-6f) ? ortho / L : Vec3{1.0f, 0.0f, 0.0f};
+  }
+}
 
 Mesh& Mesh::operator=(Mesh&& o) noexcept {
   if (this != &o) {
@@ -54,6 +90,10 @@ void Mesh::upload(const std::vector<Vertex>& verts,
   glEnableVertexAttribArray(2);
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void*)offsetof(Vertex, uv));
+  // location 3: tangent (default-initialised; only sampled by PBR-aware shaders)
+  glEnableVertexAttribArray(3);
+  glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (void*)offsetof(Vertex, tangent));
 
   glBindVertexArray(0);
   indexCount_ = indices.size();

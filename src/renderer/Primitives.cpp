@@ -4,6 +4,8 @@
 
 namespace tyro {
 
+namespace { void finishMesh(std::vector<Vertex>& V, std::vector<uint32_t>& I) { computeTangents(V, I); } }
+
 void makeCube(std::vector<Vertex>& V, std::vector<uint32_t>& I) {
   V.clear(); I.clear();
   // 6 faces × 4 verts = 24 verts (split so each face has its own normal/uvs).
@@ -25,6 +27,7 @@ void makeCube(std::vector<Vertex>& V, std::vector<uint32_t>& I) {
     I.push_back(base + 0); I.push_back(base + 1); I.push_back(base + 2);
     I.push_back(base + 0); I.push_back(base + 2); I.push_back(base + 3);
   }
+  finishMesh(V, I);
 }
 
 void makeSphere(std::vector<Vertex>& V, std::vector<uint32_t>& I,
@@ -53,6 +56,7 @@ void makeSphere(std::vector<Vertex>& V, std::vector<uint32_t>& I,
       I.push_back(i1); I.push_back(i2); I.push_back(i3);
     }
   }
+  finishMesh(V, I);
 }
 
 void makePlane(std::vector<Vertex>& V, std::vector<uint32_t>& I,
@@ -79,6 +83,7 @@ void makePlane(std::vector<Vertex>& V, std::vector<uint32_t>& I,
       I.push_back(i1); I.push_back(i2); I.push_back(i3);
     }
   }
+  finishMesh(V, I);
 }
 
 void makeTorus(std::vector<Vertex>& V, std::vector<uint32_t>& I,
@@ -109,6 +114,7 @@ void makeTorus(std::vector<Vertex>& V, std::vector<uint32_t>& I,
       I.push_back(b); I.push_back(c); I.push_back(d);
     }
   }
+  finishMesh(V, I);
 }
 
 void makeCylinder(std::vector<Vertex>& V, std::vector<uint32_t>& I,
@@ -159,6 +165,7 @@ void makeCylinder(std::vector<Vertex>& V, std::vector<uint32_t>& I,
     I.push_back(botRing0 + i + 1);
     I.push_back(botRing0 + i);
   }
+  finishMesh(V, I);
 }
 
 } // namespace tyro

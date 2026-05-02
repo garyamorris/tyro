@@ -303,6 +303,7 @@ private:
     shHexProc_     = add("shaders/phong_lit.vert", "shaders/hex.frag");        if (!shHexProc_) return false;
     shIridescent_  = add("shaders/phong_lit.vert", "shaders/iridescent.frag"); if (!shIridescent_) return false;
     shHologram_    = add("shaders/phong_lit.vert", "shaders/hologram.frag");   if (!shHologram_) return false;
+    shPbr_         = add("shaders/pbr.vert",       "shaders/pbr.frag");        if (!shPbr_) return false;
 
     shPass_   = add("shaders/blit.vert", "shaders/post_passthrough.frag"); if (!shPass_) return false;
     shSobel_  = add("shaders/blit.vert", "shaders/post_sobel.frag");      if (!shSobel_) return false;
@@ -399,6 +400,7 @@ private:
     texMarbleImg_  = bakeTex(makeMarbleTex (kTexSize), kTexSize);
     texNoiseImg_   = bakeTex(makeNoiseTex  (kTexSize), kTexSize);
     texHexImg_     = bakeTex(makeHexTex    (kTexSize), kTexSize);
+    texNormalRough_= bakeTex(makeRoughNormalMap(kTexSize, 8.0f), kTexSize);
     std::fprintf(stderr, "[demo] generated %zu procedural textures (%dx%d each)\n",
                  textures_.size(), kTexSize, kTexSize);
 
@@ -419,12 +421,41 @@ private:
     matTexMarble_  = addTexMat(texMarbleImg_, Vec3{1,1,1}, 80.0f, Vec2{1,1});
     matTexHex_     = addTexMat(texHexImg_,    Vec3{1,1,1}, 20.0f, Vec2{2,2});
     matTexChecker_ = addTexMat(texCheckerImg_,Vec3{1,1,1}, 16.0f, Vec2{4,4});
+
+    // ---- PBR materials -------------------------------------------------
+    auto addPbrMat = [&](Vec3 albedo, float metallic, float roughness,
+                         Texture* alb = nullptr, Texture* nrm = nullptr,
+                         Vec2 uvScale = {1,1}) {
+      auto m = std::make_unique<Material>();
+      m->shader    = shPbr_;
+      m->albedo    = albedo;
+      m->metallic  = metallic;
+      m->roughness = roughness;
+      m->albedoTex = alb;
+      m->normalTex = nrm;
+      m->uvScale   = uvScale;
+      Material* p = m.get();
+      scene_.materials.push_back(std::move(m));
+      return p;
+    };
+    // Textured PBR materials — albedo from procedural texture + shared rough normal map.
+    matPbrBrick_  = addPbrMat(Vec3{1,1,1},        0.0f, 0.85f, texBrickImg_,  texNormalRough_, Vec2{2,2});
+    matPbrWood_   = addPbrMat(Vec3{1,1,1},        0.0f, 0.55f, texWoodImg_,   texNormalRough_, Vec2{2,2});
+    matPbrMarble_ = addPbrMat(Vec3{1,1,1},        0.0f, 0.10f, texMarbleImg_, texNormalRough_, Vec2{1,1});
+
+    // Uniform-color PBR materials — for the metallic / roughness sweeps below.
+    matPbrGold_   = addPbrMat(Vec3{1.00f, 0.78f, 0.34f}, 1.0f, 0.20f, nullptr, texNormalRough_, Vec2{2,2});
+    matPbrCopper_ = addPbrMat(Vec3{0.95f, 0.64f, 0.54f}, 1.0f, 0.35f, nullptr, texNormalRough_, Vec2{2,2});
+    matPbrPlastic_= addPbrMat(Vec3{0.85f, 0.20f, 0.20f}, 0.0f, 0.40f, nullptr, texNormalRough_, Vec2{2,2});
+
+    // Roughness sweep (metallic = 1) — generated programmatically in Scene 9.
+    // We don't store these as members; they're created on scene-build.
   }
 
   // ===== Scene cycling =====================================================
   void buildScene(int idx) {
     scene_.clearActiveScene();
-    constexpr int kSceneCount = 8;
+    constexpr int kSceneCount = 9;
     sceneIdx_ = ((idx % kSceneCount) + kSceneCount) % kSceneCount;
     switch (sceneIdx_) {
       case 0: buildSceneMaterials();        sceneName_ = "MATERIALS";    break;
@@ -435,8 +466,73 @@ private:
       case 5: buildSceneWaterPond();        sceneName_ = "WATER POND";   break;
       case 6: buildSceneGeometryLab();      sceneName_ = "GEOMETRY LAB"; break;
       case 7: buildSceneTextureShowcase();  sceneName_ = "TEXTURE LAB";  break;
+      case 8: buildScenePbrShowcase();      sceneName_ = "PBR LAB";      break;
     }
     scene_.rebuildOctree();
+  }
+
+  void buildScenePbrShowcase() {
+    // Ground plane sampled with the textured PBR brick.
+    Entity g; g.mesh = meshGround_; g.material = matPbrBrick_;
+    g.position = Vec3{0,-0.5f,0}; g.localAABB = groundAABB_;
+    scene_.entities.push_back(g);
+
+    auto putSphere = [&](Material* m, Vec3 pos, Vec3 sc = Vec3{0.7f, 0.7f, 0.7f}) {
+      Entity e; e.mesh = meshSphere_; e.material = m; e.localAABB = sphereAABB_;
+      e.position = pos; e.scaling = sc;
+      scene_.entities.push_back(e);
+    };
+
+    const float spacing = 1.5f;
+    const int N = 5;
+
+    // Row 0 (back): metallic sweep at fixed roughness=0.30, gold tint.
+    for (int i = 0; i < N; ++i) {
+      float metallic = float(i) / float(N - 1);
+      auto m = std::make_unique<Material>();
+      m->shader = shPbr_;
+      m->albedo = Vec3{1.00f, 0.78f, 0.34f};
+      m->metallic = metallic;
+      m->roughness = 0.30f;
+      m->normalTex = texNormalRough_;
+      m->uvScale = Vec2{2, 2};
+      Material* mp = m.get();
+      scene_.materials.push_back(std::move(m));
+      putSphere(mp, Vec3{(i - (N-1)*0.5f) * spacing, 0.7f, -spacing});
+    }
+
+    // Row 1 (mid): roughness sweep at metallic=1, copper tint.
+    for (int i = 0; i < N; ++i) {
+      float roughness = 0.05f + (1.0f - 0.05f) * (float(i) / float(N - 1));
+      auto m = std::make_unique<Material>();
+      m->shader = shPbr_;
+      m->albedo = Vec3{0.95f, 0.64f, 0.54f};
+      m->metallic = 1.0f;
+      m->roughness = roughness;
+      m->normalTex = texNormalRough_;
+      m->uvScale = Vec2{2, 2};
+      Material* mp = m.get();
+      scene_.materials.push_back(std::move(m));
+      putSphere(mp, Vec3{(i - (N-1)*0.5f) * spacing, 0.7f, 0.0f});
+    }
+
+    // Row 2 (front): textured PBR + uniform-color showcase.
+    Material* front[5] = { matPbrBrick_, matPbrWood_, matPbrMarble_, matPbrPlastic_, matPbrGold_ };
+    for (int i = 0; i < 5; ++i) {
+      putSphere(front[i], Vec3{(i - 2) * spacing, 0.7f, spacing});
+    }
+
+    // Lights — a sun for shadow + a warm fill point.
+    Light sun; sun.type = LightType::Directional;
+    sun.direction = normalize(Vec3{-0.4f, -1.0f, -0.3f});
+    sun.color = Vec3{1.0f, 0.96f, 0.88f}; sun.intensity = 1.1f;
+    scene_.lights.push_back(sun);
+    Light p; p.type = LightType::Point; p.position = Vec3{0, 3, 2};
+    p.color = Vec3{1.0f, 0.7f, 0.4f}; p.intensity = 2.5f; p.radius = 12.0f;
+    scene_.lights.push_back(p);
+
+    flyCam_.setLook(Vec3{0.0f, 2.5f, 5.5f}, Vec3{0, 0.7f, 0});
+    scene_.camera.zFar = 100.0f;
   }
 
   void buildSceneTextureShowcase() {
@@ -981,7 +1077,7 @@ private:
                                           "UNLOCKED";
     text_.drawf(x, y, scale, col, "FPS %d (%.1f MS)  CAP %s",
                 int(fpsAvg_), frameMs_, lockStr); y += lh;
-    text_.drawf(x, y, scale, col, "SCENE %d/8 %s", sceneIdx_ + 1, sceneName_); y += lh;
+    text_.drawf(x, y, scale, col, "SCENE %d/9 %s", sceneIdx_ + 1, sceneName_); y += lh;
     text_.drawf(x, y, scale, col, "POST FX  %s",  postFxName()); y += lh;
     text_.drawf(x, y, scale, col, "ENTITIES %d/%d", visibleCount_, (int)scene_.entities.size()); y += lh;
     text_.drawf(x, y, scale, col, "OCTREE %d NODES", scene_.totalOctreeNodes()); y += lh;
@@ -1050,7 +1146,8 @@ private:
         * shChecker_=nullptr, *shNormalsGeo_=nullptr, *shWire_=nullptr,
         * shShadowDepth_=nullptr, *shWater_=nullptr, *shExplode_=nullptr,
         * shMarbleProc_=nullptr, *shWoodProc_=nullptr, *shBrickProc_=nullptr,
-        * shHexProc_=nullptr,    *shIridescent_=nullptr, *shHologram_=nullptr;
+        * shHexProc_=nullptr,    *shIridescent_=nullptr, *shHologram_=nullptr,
+        * shPbr_=nullptr;
   Shader* shPass_=nullptr, *shSobel_=nullptr, *shBright_=nullptr, *shBlur_=nullptr,
         * shComp_=nullptr, *shFog_=nullptr, *shSsao_=nullptr, *shChrom_=nullptr;
 
@@ -1065,10 +1162,15 @@ private:
   Material* matTexBrick_=nullptr,   *matTexWood_=nullptr,    *matTexMarble_=nullptr,
           * matTexHex_=nullptr,     *matTexChecker_=nullptr;
 
+  // PBR materials.
+  Material* matPbrBrick_=nullptr,   *matPbrWood_=nullptr,    *matPbrMarble_=nullptr,
+          * matPbrGold_=nullptr,    *matPbrCopper_=nullptr,  *matPbrPlastic_=nullptr;
+
   // Texture pool (CPU-procedural buffers uploaded to GPU).
   std::vector<std::unique_ptr<Texture>> textures_;
   Texture* texCheckerImg_=nullptr, *texBrickImg_=nullptr, *texWoodImg_=nullptr,
-         * texMarbleImg_=nullptr,  *texNoiseImg_=nullptr, *texHexImg_=nullptr;
+         * texMarbleImg_=nullptr,  *texNoiseImg_=nullptr, *texHexImg_=nullptr,
+         * texNormalRough_=nullptr;
 
   int waterEntityIdx_  = -1;
   int waterFloatStart_ = -1;

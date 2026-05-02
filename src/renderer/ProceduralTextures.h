@@ -15,4 +15,8 @@ std::vector<std::uint8_t> makeMarbleTex  (int size = 256);
 std::vector<std::uint8_t> makeNoiseTex   (int size = 256);
 std::vector<std::uint8_t> makeHexTex     (int size = 256);
 
+// Tangent-space normal map (RGBA8, OpenGL convention: G axis = +Y up).
+// `strength` scales the height gradient used to derive the normal.
+std::vector<std::uint8_t> makeRoughNormalMap(int size = 256, float strength = 8.0f);
+
 } // namespace tyro
