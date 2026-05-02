@@ -3,6 +3,7 @@
 #include "Shader.h"
 #include "gl_loader.h"
 
+#include <cmath>
 #include <iterator>
 
 namespace tyro {
@@ -65,6 +66,35 @@ void DebugDraw::aabb(const AABB& box, Vec3 color) {
     {0,2},{1,3},{4,6},{5,7},   // verticals
   };
   for (auto& e : edges) line(c[e[0]], c[e[1]], color);
+}
+
+void DebugDraw::sphere(Vec3 c, float r, Vec3 color, int segments) {
+  if (segments < 3) segments = 3;
+  // Three orthogonal great circles in the XY, XZ, and YZ planes.
+  for (int axis = 0; axis < 3; ++axis) {
+    Vec3 prev{};
+    for (int i = 0; i <= segments; ++i) {
+      float t = (2.0f * kPi * float(i)) / float(segments);
+      float ca = std::cos(t) * r;
+      float sa = std::sin(t) * r;
+      Vec3 p;
+      if      (axis == 0) p = c + Vec3{ca, sa, 0.0f};   // XY plane
+      else if (axis == 1) p = c + Vec3{ca, 0.0f, sa};   // XZ plane
+      else                p = c + Vec3{0.0f, ca, sa};   // YZ plane
+      if (i > 0) line(prev, p, color);
+      prev = p;
+    }
+  }
+}
+
+void DebugDraw::wireFrustum(const Vec3 corners[8], Vec3 color) {
+  // 12 edges: 4 on the near face, 4 on the far face, 4 connectors.
+  static const int edges[12][2] = {
+    {0,1},{1,2},{2,3},{3,0},   // near face
+    {4,5},{5,6},{6,7},{7,4},   // far face
+    {0,4},{1,5},{2,6},{3,7},   // near→far connectors
+  };
+  for (auto& e : edges) line(corners[e[0]], corners[e[1]], color);
 }
 
 void DebugDraw::flush(const Mat4& viewProj) {

@@ -34,6 +34,15 @@ public:
   void line(Vec3 a, Vec3 b, Vec3 color);
   void aabb(const AABB& box, Vec3 color);   // pushes the 12 edges
 
+  // Three orthogonal great circles. `segments` controls how round the
+  // sphere looks (24 ≈ visibly round, 12 ≈ low-poly).
+  void sphere(Vec3 center, float radius, Vec3 color, int segments = 24);
+
+  // Wireframe of an arbitrary frustum given its 8 world-space corners in the
+  // canonical order: 0..3 = near face (BL, BR, TR, TL), 4..7 = far face,
+  // same winding. Used to visualise the directional-light shadow VP.
+  void wireFrustum(const Vec3 corners[8], Vec3 color);
+
   // Single batched draw call. Caller controls depth-test state — this just
   // binds the shader and draws. Clears the accumulator.
   void flush(const Mat4& viewProj);

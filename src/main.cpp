@@ -213,10 +213,32 @@ public:
       Vec3 dir = normalize(scene_.lights[0].direction);
       Vec3 focus{0, 0, 0};
       Vec3 eye   = focus - dir * 30.0f;
-      Vec3 up    = (std::abs(dir.y) > 0.99f) ? Vec3{0,0,1} : Vec3{0,1,0};
+      Vec3 upIn  = (std::abs(dir.y) > 0.99f) ? Vec3{0,0,1} : Vec3{0,1,0};
       const float boxHalf = 18.0f;
-      lightVP = ortho(-boxHalf, boxHalf, -boxHalf, boxHalf, 0.1f, 60.0f)
-              * lookAt(eye, focus, up);
+      const float zNear   = 0.1f;
+      const float zFar    = 60.0f;
+      lightVP = ortho(-boxHalf, boxHalf, -boxHalf, boxHalf, zNear, zFar)
+              * lookAt(eye, focus, upIn);
+
+      // Store the 8 world-space corners of the shadow frustum so the debug
+      // overlay can wire-draw it without needing a general Mat4 inverse.
+      // Order: near face BL/BR/TR/TL, then far face same winding.
+      Vec3 fwd   = normalize(focus - eye);
+      Vec3 right = normalize(cross(fwd, upIn));
+      Vec3 upWS  = cross(right, fwd);
+      auto corner = [&](int xs, int ys, float z) {
+        return eye + fwd * z
+                   + right * (boxHalf * float(xs))
+                   + upWS  * (boxHalf * float(ys));
+      };
+      lightFrustumCorners_[0] = corner(-1, -1, zNear);
+      lightFrustumCorners_[1] = corner(+1, -1, zNear);
+      lightFrustumCorners_[2] = corner(+1, +1, zNear);
+      lightFrustumCorners_[3] = corner(-1, +1, zNear);
+      lightFrustumCorners_[4] = corner(-1, -1, zFar);
+      lightFrustumCorners_[5] = corner(+1, -1, zFar);
+      lightFrustumCorners_[6] = corner(+1, +1, zFar);
+      lightFrustumCorners_[7] = corner(-1, +1, zFar);
     }
 
     // ---- Pass 0: shadow map (depth-only) -------------------------------
@@ -309,16 +331,31 @@ public:
       glDisable(GL_BLEND);
       glDepthFunc(GL_LESS);
     }
-    if (showDebugBounds_) {
-      // Green: each visible entity's world AABB. Orange: every octree node.
-      // Press F to toggle culling and watch the green boxes blink in/out.
-      for (int i : visible_) {
-        debug_.aabb(scene_.entities[i].worldAABB(), Vec3{0.2f, 1.0f, 0.4f});
+    if (showDebugBounds_ || showDebugLights_) {
+      if (showDebugBounds_) {
+        // Green: each visible entity's world AABB. Orange: every octree node.
+        // Press F to toggle culling and watch the green boxes blink in/out.
+        for (int i : visible_) {
+          debug_.aabb(scene_.entities[i].worldAABB(), Vec3{0.2f, 1.0f, 0.4f});
+        }
+        std::vector<AABB> nodeBounds;
+        scene_.octreeNodeBounds(nodeBounds);
+        for (const AABB& b : nodeBounds) {
+          debug_.aabb(b, Vec3{1.0f, 0.6f, 0.2f});
+        }
       }
-      std::vector<AABB> nodeBounds;
-      scene_.octreeNodeBounds(nodeBounds);
-      for (const AABB& b : nodeBounds) {
-        debug_.aabb(b, Vec3{1.0f, 0.6f, 0.2f});
+      if (showDebugLights_) {
+        // Point lights: wire sphere at the position, tinted by light colour
+        // so a red point light gets a red sphere. Directional sun: yellow
+        // wire frustum showing the volume the shadow map covers.
+        for (const auto& L : scene_.lights) {
+          if (L.type == LightType::Point) {
+            debug_.sphere(L.position, L.radius, L.color);
+          }
+        }
+        if (haveSun) {
+          debug_.wireFrustum(lightFrustumCorners_, Vec3{1.0f, 0.95f, 0.4f});
+        }
       }
       glLineWidth(1.5f);
       debug_.flush(scene_.camera.viewProj());
@@ -1157,6 +1194,7 @@ private:
 
     edge(GLFW_KEY_T, prevT_, [&]{ showWireOverlay_ = !showWireOverlay_; });
     edge(GLFW_KEY_B, prevB_, [&]{ showDebugBounds_ = !showDebugBounds_; });
+    edge(GLFW_KEY_L, prevL_, [&]{ showDebugLights_ = !showDebugLights_; });
     edge(GLFW_KEY_J, prevJ_, [&]{ shadowsEnabled_  = !shadowsEnabled_;  });
     edge(GLFW_KEY_K, prevK_, [&]{ iblEnabled_      = !iblEnabled_;      });
     edge(GLFW_KEY_V, prevV_, [&]{
@@ -1342,10 +1380,11 @@ private:
                 cullingOn_       ? "ON" : "OFF",
                 shadowsEnabled_  ? "ON" : "OFF",
                 iblEnabled_      ? "ON" : "OFF"); y += lh;
-    text_.drawf(x, y, scale, col, "NORMALS %s  WIRE %s  BOUNDS %s",
+    text_.drawf(x, y, scale, col, "NORMALS %s  WIRE %s  BOUNDS %s  LIGHTS %s",
                 showNormals_     ? "ON" : "OFF",
                 showWireOverlay_ ? "ON" : "OFF",
-                showDebugBounds_ ? "ON" : "OFF"); y += lh;
+                showDebugBounds_ ? "ON" : "OFF",
+                showDebugLights_ ? "ON" : "OFF"); y += lh;
 
     // GPU timer breakdown.
     Vec3 gpuCol{0.6f, 0.95f, 0.7f};
@@ -1365,7 +1404,7 @@ private:
     }
 
     // Hint block, bottom-left.
-    int hy = fbHeight_ - lh * 13 - 12;
+    int hy = fbHeight_ - lh * 14 - 12;
     text_.draw("WASD MOUSE   FLY",         x, hy, scale, dim); hy += lh;
     text_.draw("TAB          CAPTURE",     x, hy, scale, dim); hy += lh;
     text_.draw("[ ]          SCENE",       x, hy, scale, dim); hy += lh;
@@ -1373,6 +1412,7 @@ private:
     text_.draw("N            NORMALS",     x, hy, scale, dim); hy += lh;
     text_.draw("T            WIREFRAME",   x, hy, scale, dim); hy += lh;
     text_.draw("B            BOUNDS",      x, hy, scale, dim); hy += lh;
+    text_.draw("L            LIGHTS",      x, hy, scale, dim); hy += lh;
     text_.draw("J            SHADOWS",     x, hy, scale, dim); hy += lh;
     text_.draw("K            IBL",         x, hy, scale, dim); hy += lh;
     text_.draw("V            FPS CAP",     x, hy, scale, dim); hy += lh;
@@ -1458,6 +1498,11 @@ private:
   bool showNormals_     = false;
   bool showWireOverlay_ = false;
   bool showDebugBounds_ = false;
+  bool showDebugLights_ = false;
+
+  // 8 world-space corners of the directional light's shadow frustum, set
+  // each frame alongside lightVP. Read by the debug-light overlay.
+  Vec3 lightFrustumCorners_[8] = {};
   bool shadowsEnabled_  = true;
   bool iblEnabled_      = true;
   bool cullingOn_       = true;
@@ -1482,7 +1527,7 @@ private:
        prev5_=false, prev6_=false, prev7_=false;
   bool prevTab_=false, prevP_=false, prevN_=false, prevF_=false,
        prevT_=false,   prevJ_=false, prevK_=false, prevV_=false,
-       prevB_=false;
+       prevB_=false,   prevL_=false;
   bool prevLB_=false, prevRB_=false, prevH_=false;
 };
 
