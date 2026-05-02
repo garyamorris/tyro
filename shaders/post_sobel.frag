@@ -1,0 +1,31 @@
+#version 330 core
+
+in  vec2 vUV;
+out vec4 FragColor;
+
+uniform sampler2D uColor;
+uniform vec2      uTexelSize;
+
+float lum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+void main() {
+    vec2 ts = uTexelSize;
+    float tl = lum(texture(uColor, vUV + vec2(-ts.x,  ts.y)).rgb);
+    float t  = lum(texture(uColor, vUV + vec2( 0.0,   ts.y)).rgb);
+    float tr = lum(texture(uColor, vUV + vec2( ts.x,  ts.y)).rgb);
+    float l  = lum(texture(uColor, vUV + vec2(-ts.x,  0.0)).rgb);
+    float r  = lum(texture(uColor, vUV + vec2( ts.x,  0.0)).rgb);
+    float bl = lum(texture(uColor, vUV + vec2(-ts.x, -ts.y)).rgb);
+    float b  = lum(texture(uColor, vUV + vec2( 0.0,  -ts.y)).rgb);
+    float br = lum(texture(uColor, vUV + vec2( ts.x, -ts.y)).rgb);
+
+    float gx = -tl - 2.0*l - bl + tr + 2.0*r + br;
+    float gy =  tl + 2.0*t  + tr - bl - 2.0*b - br;
+    float g  = sqrt(gx*gx + gy*gy);
+
+    vec3 base = texture(uColor, vUV).rgb * 0.25;
+    vec3 edge = vec3(g);
+    vec3 c = base + edge;
+    c = pow(c, vec3(1.0/2.2));
+    FragColor = vec4(c, 1.0);
+}

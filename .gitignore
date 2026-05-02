@@ -1,0 +1,36 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln
+.idea/
+*.swp
+*~
+
+# Compiled artifacts
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.exe
+*.o
+*.a
+
+# Run output
+*.stderr.log
+*.stdout.log
+
+# Local Claude state / cache
+.claude/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
