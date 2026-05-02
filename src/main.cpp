@@ -569,35 +569,43 @@ private:
   };
   static SceneInfo sceneInfo(int idx) {
     switch (idx) {
-      case 0: return {"MATERIALS",     "5 mesh types x 4 materials (phong, toon, rim)"};
-      case 1: return {"LIGHT GARDEN",  "6 colored point lights orbit a checker plane"};
-      case 2: return {"OCTREE STRESS", "512 entities + frustum cull via static octree"};
-      case 3: return {"EFFECTS",       "hero meshes with strong contrast for post-FX"};
-      case 4: return {"SHOWCASE BAY",  "teapot + spot the cow, shadowed warm/cool light"};
-      case 5: return {"WATER POND",    "sin-sum vertex displacement + Fresnel water"};
-      case 6: return {"GEOMETRY LAB",  "explode geometry shader on teapot/cow/torus"};
-      case 7: return {"TEXTURE LAB",   "GPU textures vs procedural patterns vs exotic"};
-      case 8: return {"PBR LAB",       "metallic + roughness sweeps, Cook-Torrance + IBL"};
-      case 9: return {"ATRIUM",        "enclosed hall: every feature in one environment"};
+      case 0:  return {"MATERIALS",       "5 mesh types x 4 materials (phong, toon, rim)"};
+      case 1:  return {"LIGHT GARDEN",    "6 colored point lights orbit a checker plane"};
+      case 2:  return {"OCTREE STRESS",   "512 entities + frustum cull via static octree"};
+      case 3:  return {"EFFECTS",         "hero meshes with strong contrast for post-FX"};
+      case 4:  return {"SHOWCASE BAY",    "teapot + spot the cow, shadowed warm/cool light"};
+      case 5:  return {"WATER POND",      "sin-sum vertex displacement + Fresnel water"};
+      case 6:  return {"GEOMETRY LAB",    "explode geometry shader on teapot/cow/torus"};
+      case 7:  return {"TEXTURE LAB",     "GPU textures vs procedural patterns vs exotic"};
+      case 8:  return {"PBR LAB",         "metallic + roughness sweeps, Cook-Torrance + IBL"};
+      case 9:  return {"ATRIUM",          "enclosed hall: every feature in one environment"};
+      case 10: return {"SPOTLIGHT STAGE", "3 colored spots converge on a central hero (press L)"};
+      case 11: return {"SHADOW THEATRE",  "4 rotating movers cast sweeping shadows from a low sun"};
+      case 12: return {"DAY NIGHT",       "sun arcs over scene; torches ramp on at dusk (24s loop)"};
+      case 13: return {"IBL FOCUS",       "metal-roughness sweep with NO direct lights — toggle K"};
     }
     return {"?", ""};
   }
 
   void buildScene(int idx) {
     scene_.clearActiveScene();
-    constexpr int kSceneCount = 10;
+    constexpr int kSceneCount = 14;
     sceneIdx_ = ((idx % kSceneCount) + kSceneCount) % kSceneCount;
     switch (sceneIdx_) {
-      case 0: buildSceneMaterials();        break;
-      case 1: buildSceneLightGarden();      break;
-      case 2: buildSceneOctreeStress();     break;
-      case 3: buildSceneEffects();          break;
-      case 4: buildSceneShowcase();         break;
-      case 5: buildSceneWaterPond();        break;
-      case 6: buildSceneGeometryLab();      break;
-      case 7: buildSceneTextureShowcase();  break;
-      case 8: buildScenePbrShowcase();      break;
-      case 9: buildSceneAtrium();           break;
+      case 0:  buildSceneMaterials();        break;
+      case 1:  buildSceneLightGarden();      break;
+      case 2:  buildSceneOctreeStress();     break;
+      case 3:  buildSceneEffects();          break;
+      case 4:  buildSceneShowcase();         break;
+      case 5:  buildSceneWaterPond();        break;
+      case 6:  buildSceneGeometryLab();      break;
+      case 7:  buildSceneTextureShowcase();  break;
+      case 8:  buildScenePbrShowcase();      break;
+      case 9:  buildSceneAtrium();           break;
+      case 10: buildSceneSpotStage();        break;
+      case 11: buildSceneShadowTheatre();    break;
+      case 12: buildSceneDayNight();         break;
+      case 13: buildSceneIblFocus();         break;
     }
     SceneInfo info = sceneInfo(sceneIdx_);
     sceneName_ = info.name;
@@ -744,6 +752,185 @@ private:
 
     flyCam_.setLook(Vec3{0, 1.7f, 9.5f}, Vec3{0, 1.4f, 0});
     scene_.camera.zFar = 100.0f;
+  }
+
+  // Spotlight Stage — three coloured spots converge on a central hero. Press
+  // `L` to see the cones, `K` for IBL fill, `1`-`7` to swap material on every
+  // entity (the cone math is shared across BRDFs).
+  void buildSceneSpotStage() {
+    // Dark matte floor — high contrast against the coloured spots.
+    auto darkMat = std::make_unique<Material>();
+    darkMat->shader = shLit_;
+    darkMat->albedo = Vec3{0.06f, 0.06f, 0.07f};
+    Material* dark = darkMat.get();
+    scene_.materials.push_back(std::move(darkMat));
+
+    Entity g; g.mesh = meshGround_; g.material = dark;
+    g.position = Vec3{0, -0.5f, 0}; g.localAABB = groundAABB_;
+    scene_.entities.push_back(g);
+
+    // Wood pedestal + iridescent hero sphere on top.
+    auto put = [&](Mesh* m, AABB ab, Material* mat, Vec3 pos, Vec3 sc = Vec3{1,1,1}) {
+      Entity e; e.mesh = m; e.material = mat; e.localAABB = ab;
+      e.position = pos; e.scaling = sc;
+      scene_.entities.push_back(e);
+    };
+    put(meshCube_,   cubeAABB_,   matPbrWood_,    Vec3{0, 0.4f, 0}, Vec3{0.6f, 0.4f, 0.6f});
+    put(meshSphere_, sphereAABB_, matIridescent_, Vec3{0, 1.4f, 0}, Vec3{0.55f, 0.55f, 0.55f});
+
+    // Three spots at 120° intervals, all aimed at the hero. Tight cones so
+    // the colour pools on the floor are clearly separated.
+    Vec3 colors[3] = {
+      {1.00f, 0.25f, 0.35f},  // red
+      {0.25f, 1.00f, 0.40f},  // green
+      {0.30f, 0.45f, 1.00f},  // blue
+    };
+    Vec3 target{0.0f, 1.4f, 0.0f};
+    for (int i = 0; i < 3; ++i) {
+      float a = (float(i) / 3.0f) * 2.0f * kPi;
+      Vec3 pos{std::cos(a) * 5.5f, 5.0f, std::sin(a) * 5.5f};
+      Light s;
+      s.type      = LightType::Spot;
+      s.position  = pos;
+      s.direction = normalize(target - pos);
+      s.color     = colors[i];
+      s.intensity = 9.0f;
+      s.radius    = 9.0f;
+      s.innerDeg  = 8.0f;
+      s.outerDeg  = 14.0f;
+      scene_.lights.push_back(s);
+    }
+
+    flyCam_.setLook(Vec3{0, 2.5f, 7.0f}, Vec3{0, 1.4f, 0});
+    scene_.camera.zFar = 80.0f;
+  }
+
+  // Shadow Theatre — four rotating movers cast sweeping shadows from a low
+  // sun across a clean checker plane and back wall. Pair with `J` (toggle
+  // shadows), `L` (frustum), `M` (depth thumbnail).
+  void buildSceneShadowTheatre() {
+    Entity g; g.mesh = meshGround_; g.material = matChecker_;
+    g.position = Vec3{0,-0.5f,0}; g.localAABB = groundAABB_;
+    scene_.entities.push_back(g);
+
+    // Back wall — gives the shadows somewhere to climb when the sun is low.
+    Entity wall; wall.mesh = meshCube_; wall.material = matLitCool_;
+    wall.localAABB = cubeAABB_;
+    wall.position = Vec3{0, 2.0f, -6.0f};
+    wall.scaling  = Vec3{12.0f, 4.5f, 0.3f};
+    scene_.entities.push_back(wall);
+
+    // Four movers in a row — different mesh shapes give differently-shaped
+    // shadows, so the ground reads as a mini animated theatre.
+    shadowTheatreFirstMover_ = static_cast<int>(scene_.entities.size());
+    Material* mats[4]   = { matPbrCopper_, matPbrGold_, matPbrPlastic_, matToon_ };
+    Mesh*     meshes[4] = { meshCube_,     meshCylinder_, meshSphere_,  meshTorus_ };
+    AABB      aabbs[4]  = { cubeAABB_,     cylAABB_,      sphereAABB_,  torusAABB_ };
+    for (int i = 0; i < 4; ++i) {
+      Entity e; e.mesh = meshes[i]; e.material = mats[i]; e.localAABB = aabbs[i];
+      e.position = Vec3{(i - 1.5f) * 2.5f, 1.2f, 0.0f};
+      e.scaling  = Vec3{0.7f, 0.7f, 0.7f};
+      scene_.entities.push_back(e);
+    }
+
+    // Single low sun for long, dramatic shadows.
+    Light sun; sun.type = LightType::Directional;
+    sun.direction = normalize(Vec3{-0.6f, -0.7f, 0.3f});
+    sun.color     = Vec3{1.0f, 0.95f, 0.85f};
+    sun.intensity = 1.8f;
+    scene_.lights.push_back(sun);
+
+    flyCam_.setLook(Vec3{0, 3.5f, 7.5f}, Vec3{0, 1.0f, 0});
+    scene_.camera.zFar = 100.0f;
+  }
+
+  // Day/Night Cycle — sun arcs around the X-Y plane every 24 seconds. Sun
+  // intensity tracks elevation (zero at horizon and below); colour warms
+  // toward sunset; four corner torches ramp on as the sun goes down. Watch
+  // the shadow direction sweep across the ground.
+  void buildSceneDayNight() {
+    Entity g; g.mesh = meshGround_; g.material = matPbrBrick_;
+    g.position = Vec3{0, -0.5f, 0}; g.localAABB = groundAABB_;
+    scene_.entities.push_back(g);
+
+    auto put = [&](Mesh* m, AABB ab, Material* mat, Vec3 pos, Vec3 sc = Vec3{1,1,1}) {
+      Entity e; e.mesh = m; e.material = mat; e.localAABB = ab;
+      e.position = pos; e.scaling = sc;
+      scene_.entities.push_back(e);
+    };
+    put(meshSphere_, sphereAABB_, matPbrCopper_,  Vec3{-3.0f, 0.7f, 0.0f}, Vec3{0.8f,0.8f,0.8f});
+    put(meshTorus_,  torusAABB_,  matPbrGold_,    Vec3{ 0.0f, 1.0f, 0.0f}, Vec3{1.4f,1.4f,1.4f});
+    put(meshCube_,   cubeAABB_,   matPbrPlastic_, Vec3{ 3.0f, 0.7f, 0.0f}, Vec3{0.9f,0.9f,0.9f});
+
+    // Sun: lights[0] so the shadow pass picks it up. Direction + intensity
+    // are overwritten every frame in tickActiveScene; initial values are
+    // "noon" so the first frame already looks correct.
+    Light sun; sun.type = LightType::Directional;
+    sun.direction = Vec3{0.0f, -1.0f, 0.0f};
+    sun.color     = Vec3{1.0f, 0.95f, 0.85f};
+    sun.intensity = 1.5f;
+    scene_.lights.push_back(sun);
+
+    // Four corner torches; intensity ramps in tickActiveScene.
+    dayNightTorchStart_ = static_cast<int>(scene_.lights.size());
+    Vec3 torchPos[4] = {
+      {-6.0f, 1.5f, -6.0f}, { 6.0f, 1.5f, -6.0f},
+      {-6.0f, 1.5f,  6.0f}, { 6.0f, 1.5f,  6.0f},
+    };
+    for (int i = 0; i < 4; ++i) {
+      Light t; t.type = LightType::Point;
+      t.position  = torchPos[i];
+      t.color     = Vec3{1.0f, 0.55f, 0.20f};
+      t.intensity = 0.0f;       // tick fills this in
+      t.radius    = 8.0f;
+      scene_.lights.push_back(t);
+    }
+
+    flyCam_.setLook(Vec3{0, 3.0f, 8.0f}, Vec3{0, 1.0f, 0});
+    scene_.camera.zFar = 120.0f;
+  }
+
+  // IBL Focus — five PBR spheres in a row with metallic=1 and roughness
+  // sweeping 0..1, lit by NOTHING except IBL. With K off the spheres are
+  // almost pitch black (3% ambient); with K on they pop with prefiltered
+  // environment reflections that smear smoothly with roughness.
+  void buildSceneIblFocus() {
+    // Dim grey floor — keep it dark so the spheres dominate.
+    auto floorMat = std::make_unique<Material>();
+    floorMat->shader    = shPbr_;
+    floorMat->albedo    = Vec3{0.20f, 0.20f, 0.22f};
+    floorMat->metallic  = 0.0f;
+    floorMat->roughness = 0.85f;
+    Material* floorPtr = floorMat.get();
+    scene_.materials.push_back(std::move(floorMat));
+
+    Entity g; g.mesh = meshGround_; g.material = floorPtr;
+    g.position = Vec3{0,-0.5f,0}; g.localAABB = groundAABB_;
+    scene_.entities.push_back(g);
+
+    // Row of 5 metallic spheres, gold albedo, roughness 0..1.
+    const int N = 5;
+    const float spacing = 1.6f;
+    for (int i = 0; i < N; ++i) {
+      auto m = std::make_unique<Material>();
+      m->shader    = shPbr_;
+      m->albedo    = Vec3{0.95f, 0.78f, 0.40f};
+      m->metallic  = 1.0f;
+      m->roughness = float(i) / float(N - 1);
+      Material* mp = m.get();
+      scene_.materials.push_back(std::move(m));
+
+      Entity e; e.mesh = meshSphere_; e.material = mp; e.localAABB = sphereAABB_;
+      e.position = Vec3{(i - (N-1)*0.5f) * spacing, 0.7f, 0.0f};
+      e.scaling  = Vec3{0.7f, 0.7f, 0.7f};
+      scene_.entities.push_back(e);
+    }
+
+    // Intentionally NO Light entries — this scene is the IBL contribution
+    // in isolation. Press K to compare with-IBL vs without-IBL.
+
+    flyCam_.setLook(Vec3{0, 1.6f, 5.5f}, Vec3{0, 0.7f, 0});
+    scene_.camera.zFar = 60.0f;
   }
 
   void buildScenePbrShowcase() {
@@ -1176,6 +1363,50 @@ private:
           }
         }
       }
+    } else if (sceneIdx_ == 11 && shadowTheatreFirstMover_ >= 0) {
+      // Shadow Theatre — yaw each mover at a different rate so the shadow
+      // sweep on the ground reads as a complex moving silhouette.
+      for (int i = 0; i < 4; ++i) {
+        int eidx = shadowTheatreFirstMover_ + i;
+        if (eidx < (int)scene_.entities.size()) {
+          float yaw = time_ * (0.6f + i * 0.25f) + i * 0.7f;
+          scene_.entities[eidx].rotation = Quat::fromAxisAngle(Vec3{0, 1, 0}, yaw);
+        }
+      }
+    } else if (sceneIdx_ == 12) {
+      // Day/Night — sun travels a circle in the X-Y plane (Z=0). One full
+      // cycle = 24 seconds. Y > 0 = above horizon = "day", Y < 0 = "night".
+      const float period = 24.0f;
+      float phase = std::fmod(time_, period) / period;
+      float theta = phase * 2.0f * kPi;
+      Vec3 sunPos{std::cos(theta), std::sin(theta), 0.0f};
+      if (!scene_.lights.empty()
+          && scene_.lights[0].type == LightType::Directional) {
+        scene_.lights[0].direction = -sunPos;
+        // Day-ness ramps with elevation; horizon and below = 0.
+        float dayness = std::max(0.0f, sunPos.y);
+        scene_.lights[0].intensity = dayness * 1.8f;
+        // Warmer at the horizon, near-white at noon.
+        float warm = 1.0f - dayness;
+        scene_.lights[0].color = Vec3{
+          1.0f,
+          0.95f - 0.30f * warm,
+          0.85f - 0.50f * warm
+        };
+      }
+      // Torches ramp on as the sun sets — peak at midnight.
+      if (dayNightTorchStart_ >= 0) {
+        float dayness = std::max(0.0f, sunPos.y);
+        float night   = 1.0f - dayness;
+        for (int i = 0; i < 4; ++i) {
+          int idx = dayNightTorchStart_ + i;
+          if (idx < (int)scene_.lights.size()) {
+            // Subtle per-torch flicker on top of the night ramp.
+            float flicker = 1.0f + 0.06f * std::sin(time_ * 8.0f + i * 1.7f);
+            scene_.lights[idx].intensity = night * 4.5f * flicker;
+          }
+        }
+      }
     }
   }
 
@@ -1405,7 +1636,7 @@ private:
                                           "UNLOCKED";
     text_.drawf(x, y, scale, col, "FPS %d (%.1f MS)  CAP %s",
                 int(fpsAvg_), frameMs_, lockStr); y += lh;
-    text_.drawf(x, y, scale, col, "SCENE %d/10 %s", sceneIdx_ + 1, sceneName_); y += lh;
+    text_.drawf(x, y, scale, col, "SCENE %d/14 %s", sceneIdx_ + 1, sceneName_); y += lh;
     if (sceneDesc_ && sceneDesc_[0]) {
       text_.drawf(x, y, scale, dim, "  %s", sceneDesc_); y += lh;
     }
@@ -1534,6 +1765,8 @@ private:
   const char* sceneName_ = "?";
   const char* sceneDesc_ = "";
   int lightGardenStart_ = 0;
+  int shadowTheatreFirstMover_ = -1;
+  int dayNightTorchStart_      = -1;
   bool showNormals_       = false;
   bool showWireOverlay_   = false;
   bool showDebugBounds_   = false;
