@@ -102,12 +102,6 @@ vec3 sampleNormalWS(vec2 uv) {
     return normalize(mat3(T, B, N) * nTan);
 }
 
-// ---- ACES tonemap (Knarkowicz fit) ---------------------------------------
-vec3 acesFilm(vec3 x) {
-    return clamp((x * (2.51 * x + 0.03)) /
-                 (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
-}
-
 void main() {
     vec2 uv = vUV * uUvScale + uUvOffset;
 
@@ -187,8 +181,6 @@ void main() {
     }
     vec3 color = ambient + Lo + uEmissive;
 
-    // ACES tonemap + sRGB curve.
-    color = acesFilm(color);
-    color = pow(color, vec3(1.0 / 2.2));
+    // Output linear HDR; the post-FX chain's final pass owns tonemap + sRGB.
     FragColor = vec4(color, 1.0);
 }

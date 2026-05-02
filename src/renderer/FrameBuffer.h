@@ -15,7 +15,11 @@ public:
   FrameBuffer(const FrameBuffer&) = delete;
   FrameBuffer& operator=(const FrameBuffer&) = delete;
 
-  bool create(int width, int height, DepthMode depth = DepthMode::Renderbuffer);
+  // `hdr` chooses RGBA16F over RGBA8 for the color attachment — needed when
+  // the FBO must hold linear HDR values (PBR + IBL + bloom intermediate).
+  bool create(int width, int height,
+              DepthMode depth = DepthMode::Renderbuffer,
+              bool hdr = false);
   void resize(int width, int height);
   void destroy();
 
@@ -33,6 +37,7 @@ private:
   unsigned int depthTex_ = 0; // when depthMode_ == Texture
   unsigned int depthRbo_ = 0; // when depthMode_ == Renderbuffer
   DepthMode    depthMode_ = DepthMode::Renderbuffer;
+  bool         hdr_      = false;
   int width_ = 0, height_ = 0;
 };
 

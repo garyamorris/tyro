@@ -21,7 +21,5 @@ void main() {
     float depth = texture(uDepth, vUV).r;
     float linZ  = linearizeDepth(depth);
     float t     = clamp((linZ - uFogStart) / max(uFogEnd - uFogStart, 1e-4), 0.0, 1.0);
-    vec3  c     = mix(scene, uFogColor, t);
-    c = pow(c, vec3(1.0/2.2));
-    FragColor = vec4(c, 1.0);
+    FragColor = vec4(mix(scene, uFogColor, t), 1.0);
 }

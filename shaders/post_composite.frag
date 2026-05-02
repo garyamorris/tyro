@@ -17,6 +17,5 @@ void main() {
         float d = distance(vUV, vec2(0.5));
         c *= mix(1.0, 1.0 - d * 1.2, uVignette);
     }
-    c = pow(c, vec3(1.0/2.2));
     FragColor = vec4(c, 1.0);
 }

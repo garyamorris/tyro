@@ -47,7 +47,5 @@ void main() {
     }
     float ao = 1.0 - clamp(occ / float(kSamples) * uIntensity, 0.0, 1.0);
 
-    vec3 c = texture(uColor, vUV).rgb * ao;
-    c = pow(c, vec3(1.0/2.2));
-    FragColor = vec4(c, 1.0);
+    FragColor = vec4(texture(uColor, vUV).rgb * ao, 1.0);
 }

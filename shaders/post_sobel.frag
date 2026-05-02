@@ -25,7 +25,5 @@ void main() {
 
     vec3 base = texture(uColor, vUV).rgb * 0.25;
     vec3 edge = vec3(g);
-    vec3 c = base + edge;
-    c = pow(c, vec3(1.0/2.2));
-    FragColor = vec4(c, 1.0);
+    FragColor = vec4(base + edge, 1.0);
 }

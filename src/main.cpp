@@ -89,9 +89,12 @@ public:
     w.framebufferSize(fbw, fbh);
     fbWidth_  = fbw > 0 ? fbw : 1;
     fbHeight_ = fbh > 0 ? fbh : 1;
-    sceneFbo_.create(fbWidth_, fbHeight_, DepthMode::Texture);
-    pingFbo_ .create(fbWidth_, fbHeight_, DepthMode::None);
-    pongFbo_ .create(fbWidth_, fbHeight_, DepthMode::None);
+    // Scene FBO is RGBA16F so PBR + IBL + sun-disc HDR aren't clipped before
+    // post-process. ping/pong stay HDR for the bloom blur path; the final
+    // tonemap pass writes to the default LDR framebuffer.
+    sceneFbo_.create(fbWidth_, fbHeight_, DepthMode::Texture, /*hdr*/true);
+    pingFbo_ .create(fbWidth_, fbHeight_, DepthMode::None,    /*hdr*/true);
+    pongFbo_ .create(fbWidth_, fbHeight_, DepthMode::None,    /*hdr*/true);
 
     if (!loadShaders())   return false;
     buildMeshesAndMaterials();
@@ -353,6 +356,7 @@ private:
     shHologram_    = add("shaders/phong_lit.vert", "shaders/hologram.frag");   if (!shHologram_) return false;
     shPbr_         = add("shaders/pbr.vert",       "shaders/pbr.frag");        if (!shPbr_) return false;
 
+    shTonemap_= add("shaders/blit.vert", "shaders/post_tonemap.frag");    if (!shTonemap_) return false;
     shPass_   = add("shaders/blit.vert", "shaders/post_passthrough.frag"); if (!shPass_) return false;
     shSobel_  = add("shaders/blit.vert", "shaders/post_sobel.frag");      if (!shSobel_) return false;
     shBright_ = add("shaders/blit.vert", "shaders/post_bright.frag");     if (!shBright_) return false;
@@ -1007,17 +1011,22 @@ private:
   void runPostFx() {
     Vec2 texelSize{1.0f / float(fbWidth_), 1.0f / float(fbHeight_)};
 
+    // Each effect writes its (still-linear-HDR) result into pingFbo_ by
+    // default; bloom uses pongFbo_ for the final composite and points
+    // `result` at it. The final tonemap pass below reads from `result`.
+    FrameBuffer* result = &pingFbo_;
+
     switch (postFx_) {
       case PostFx::None: {
-        runFs(nullptr, shPass_, [&](Shader& s){
+        runFs(&pingFbo_, shPass_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
           s.setInt("uColor", 0);
-          s.setFloat("uVignette", 0.5f);
+          s.setFloat("uVignette", 0.0f);
         });
       } break;
 
       case PostFx::Sobel: {
-        runFs(nullptr, shSobel_, [&](Shader& s){
+        runFs(&pingFbo_, shSobel_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
           s.setInt("uColor", 0);
           s.setVec2("uTexelSize", texelSize);
@@ -1025,11 +1034,11 @@ private:
       } break;
 
       case PostFx::Bloom: {
-        // 1) Bright extract: scene → ping
+        // 1) Bright extract (HDR threshold > 1.0): scene → ping
         runFs(&pingFbo_, shBright_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
           s.setInt("uColor", 0);
-          s.setFloat("uThreshold", 0.85f);
+          s.setFloat("uThreshold", 1.0f);
         });
         // 2) Blur H: ping → pong
         runFs(&pongFbo_, shBlur_, [&](Shader& s){
@@ -1037,26 +1046,27 @@ private:
           s.setInt("uColor", 0);
           s.setVec2("uDirection", Vec2{texelSize.x, 0.0f});
         });
-        // 3) Blur V: pong → ping
+        // 3) Blur V: pong → ping (ping now holds blurred bloom)
         runFs(&pingFbo_, shBlur_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, pongFbo_.colorTexture());
           s.setInt("uColor", 0);
           s.setVec2("uDirection", Vec2{0.0f, texelSize.y});
         });
-        // 4) Composite: scene + ping → default
-        runFs(nullptr, shComp_, [&](Shader& s){
+        // 4) Composite scene + bloom into pong (so the tonemap below reads pong).
+        runFs(&pongFbo_, shComp_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
           s.setInt("uScene", 0);
           glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, pingFbo_.colorTexture());
           s.setInt("uBloom", 1);
-          s.setFloat("uBloomStrength", 1.2f);
-          s.setFloat("uVignette", 0.5f);
+          s.setFloat("uBloomStrength", 0.6f);
+          s.setFloat("uVignette", 0.0f);
           glActiveTexture(GL_TEXTURE0);
         });
+        result = &pongFbo_;
       } break;
 
       case PostFx::Fog: {
-        runFs(nullptr, shFog_, [&](Shader& s){
+        runFs(&pingFbo_, shFog_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
           s.setInt("uColor", 0);
           glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, sceneFbo_.depthTexture());
@@ -1071,7 +1081,7 @@ private:
       } break;
 
       case PostFx::Ssao: {
-        runFs(nullptr, shSsao_, [&](Shader& s){
+        runFs(&pingFbo_, shSsao_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
           s.setInt("uColor", 0);
           glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, sceneFbo_.depthTexture());
@@ -1086,7 +1096,7 @@ private:
       } break;
 
       case PostFx::Chromatic: {
-        runFs(nullptr, shChrom_, [&](Shader& s){
+        runFs(&pingFbo_, shChrom_, [&](Shader& s){
           glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
           s.setInt("uColor", 0);
           s.setFloat("uAmount", 0.012f);
@@ -1095,6 +1105,14 @@ private:
 
       case PostFx::COUNT: break;
     }
+
+    // Always-on final pass: ACES tonemap + sRGB encode → default framebuffer.
+    runFs(nullptr, shTonemap_, [&](Shader& s){
+      glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, result->colorTexture());
+      s.setInt("uColor", 0);
+      s.setFloat("uExposure", exposure_);
+      s.setFloat("uVignette", 0.5f);
+    });
   }
 
   // ===== Overlay ===========================================================
@@ -1206,7 +1224,8 @@ private:
         * shHexProc_=nullptr,    *shIridescent_=nullptr, *shHologram_=nullptr,
         * shPbr_=nullptr;
   Shader* shPass_=nullptr, *shSobel_=nullptr, *shBright_=nullptr, *shBlur_=nullptr,
-        * shComp_=nullptr, *shFog_=nullptr, *shSsao_=nullptr, *shChrom_=nullptr;
+        * shComp_=nullptr, *shFog_=nullptr, *shSsao_=nullptr, *shChrom_=nullptr,
+        * shTonemap_=nullptr;
 
   Material* matLitWarm_=nullptr, *matLitCool_=nullptr, *matToon_=nullptr,
           * matRim_=nullptr, *matChecker_=nullptr, *matUnlit_=nullptr,
@@ -1234,6 +1253,7 @@ private:
 
   enum class PostFx { None, Sobel, Bloom, Fog, Ssao, Chromatic, COUNT };
   PostFx postFx_ = PostFx::None;
+  float  exposure_ = 1.0f;
   enum class FpsMode { Fps120, Fps60, Unlocked, COUNT };
   FpsMode fpsMode_ = FpsMode::Fps120;
 
