@@ -5,7 +5,7 @@ A small, opinionated 3D rendering engine in modern C++17 / OpenGL 3.3 core.
 Built from scratch — including a custom math library, a hand-rolled GL function
 loader, a procedural mesh library, an octree, frustum culling, shadow mapping,
 hot-reloadable shaders, GPU timer queries, screen-space post effects, and a
-text overlay driven by an embedded bitmap font. Eight cycleable demo scenes
+text overlay driven by an embedded bitmap font. Ten cycleable demo scenes
 showcase the feature surface.
 
 ## Features
@@ -25,7 +25,7 @@ showcase the feature surface.
 - Multi-stage shader pipeline (vertex / geometry / fragment) — geometry-shader
   examples include normals overlay, wireframe via barycentric coords, and an
   exploding mesh effect
-- 20+ unique materials wired across 9 scenes:
+- 20+ unique materials wired across 10 scenes:
   - Phong (warm + cool), Toon (cel-shaded), Fresnel rim, Unlit matcap, Wireframe,
     Water (animated), Explode (geometry shader), Marble / Wood / Brick / Hex
     (procedural patterns), Iridescent, Hologram, **PBR** (Cook-Torrance GGX with
@@ -91,6 +91,19 @@ Cycle with `[` and `]`:
 | 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox |
 | 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight, PCF shadows, IBL |
 
+## Gallery
+
+<!-- Drop captures into docs/img/. See docs/img/README.md for filenames + sizes. -->
+
+<p align="center">
+  <img src="docs/img/atrium.png"       alt="Atrium scene"      width="48%"/>
+  <img src="docs/img/pbr_lab.png"      alt="PBR Lab"           width="48%"/>
+</p>
+<p align="center">
+  <img src="docs/img/light_garden.png" alt="Light Garden"      width="48%"/>
+  <img src="docs/img/water_pond.png"   alt="Water Pond"        width="48%"/>
+</p>
+
 ## Hotkeys
 
 | Key | Action |
@@ -112,9 +125,24 @@ Cycle with `[` and `]`:
 
 ## Build
 
-Requires Windows + Visual Studio 2019 (or Build Tools), CMake 3.20+, an
-internet connection on first configure (CMake `FetchContent` pulls GLFW 3.4
-once).
+**Common prerequisites**
+
+- CMake 3.20+
+- A C++17 compiler
+- An OpenGL 3.3 core driver
+- Internet on first configure — CMake `FetchContent` clones GLFW 3.4 once
+
+The post-build step copies `shaders/` and `assets/` next to the binary so the
+demo can find them via relative paths.
+
+> Only the Windows path is regularly tested. Linux/macOS instructions are
+> provided in good faith based on the build's portability (the only Windows-
+> specific link is `opengl32` in `CMakeLists.txt`), but they are **unverified**
+> — reports welcome.
+
+### Windows (verified)
+
+Visual Studio 2019 (or Build Tools):
 
 ```pwsh
 cmake -S . -B build -G "Visual Studio 16 2019" -A x64
@@ -122,8 +150,33 @@ cmake --build build --config Release
 build\Release\tyro.exe
 ```
 
-The post-build step copies `shaders/` and `assets/` next to the binary so the
-demo can find them via relative paths.
+### Linux (unverified)
+
+Install GLFW's X11/Wayland system dependencies first. On Debian / Ubuntu:
+
+```sh
+sudo apt install libx11-dev libxrandr-dev libxinerama-dev \
+                 libxcursor-dev libxi-dev libgl1-mesa-dev
+```
+
+Then:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/tyro
+```
+
+### macOS (unverified)
+
+Apple deprecated OpenGL in 10.14, but the GL 3.3 core profile still runs on
+current macOS. Xcode command-line tools required.
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/tyro
+```
 
 ## Project layout
 
@@ -131,8 +184,9 @@ demo can find them via relative paths.
 tyro/
 ├── CMakeLists.txt
 ├── README.md, LICENSE, ARCHITECTURE.md
-├── assets/             - OBJ models (cube, teapot, spot-the-cow)
-├── shaders/            - GLSL: vert / frag / geom (~30 files)
+├── assets/             - OBJ models (teapot, spot-the-cow) — not checked in;
+│                        see Troubleshooting
+├── shaders/            - GLSL: vert / frag / geom (51 files)
 ├── src/
 │   ├── main.cpp        - the 8-scene demo, hotkeys, render orchestration
 │   ├── core/Engine     - game loop, frame limiter, fixed timestep
@@ -175,6 +229,51 @@ octree. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
   repository.
 - The hand-rolled GL loader, math library, OBJ parser, octree, post-process
   shaders, bitmap font, and everything in `src/` are original code.
+
+## Troubleshooting
+
+**`assets/` directory missing — build's post-build copy fails, or the demo
+exits with "failed to open assets/teapot.obj"**
+
+The `assets/` folder is not currently checked into the repo, but
+`src/main.cpp` loads `assets/teapot.obj` and `assets/spot.obj` at startup,
+and `CMakeLists.txt` copies the directory next to the binary as a post-build
+step. You have two options:
+
+- Obtain the models (links in [Acknowledgements](#acknowledgements)) and
+  place them at `assets/teapot.obj` and `assets/spot.obj`.
+- Or comment out the OBJ loads in `src/main.cpp` (search for `loadObjMesh`)
+  to run on the procedural primitives only.
+
+**CMake `FetchContent` fails on first configure (offline / firewall)**
+
+The first configure clones GLFW 3.4 from GitHub. If your environment blocks
+this, pre-clone `https://github.com/glfw/glfw.git` at tag `3.4` and either
+point `FetchContent_Declare` at the local checkout, or vendor it under
+`third_party/` like `stb`.
+
+**Black window / "OpenGL 3.3 not supported"**
+
+The driver is too old, or you've fallen back to software rendering. Update
+GPU drivers. On Linux, confirm:
+
+```sh
+glxinfo | grep "OpenGL core profile version"
+```
+
+reports 3.3 or higher.
+
+**Shaders fail to load at runtime**
+
+The binary expects `shaders/` and `assets/` in its working directory (the
+post-build step in `CMakeLists.txt` copies them next to the executable). Run
+from the build output directory, not the source root.
+
+**Hot-reload doesn't pick up shader edits**
+
+The 250 ms file-watcher polls the *copied* `shaders/` next to the binary,
+not the source-tree `shaders/`. Edit the copy, re-run the build to refresh
+it, or replace the copy with a symlink to the source tree.
 
 ## License
 
