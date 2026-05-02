@@ -125,6 +125,7 @@ Cycle with `[` and `]`:
 | `B` | Toggle debug bounds overlay (entity AABBs + octree node boxes — pair with `F` to see culling work) |
 | `L` | Toggle light/shadow overlay (point-light radii as wire spheres + sun's shadow frustum) |
 | `J` | Toggle directional shadow mapping |
+| `M` | Toggle shadow-map preview thumbnail (bottom-right grayscale view of the depth texture) |
 | `K` | Toggle image-based lighting (IBL ambient + skybox) |
 | `V` | Cycle FPS cap (120 / 60 / unlocked) |
 | `F` | Toggle frustum culling (compare visible counts) |
