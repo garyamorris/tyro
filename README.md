@@ -96,7 +96,11 @@ Cycle with `[` and `]`:
 | 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader | the geometry shader stage |
 | 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders | texture sampling vs procedural fragment shaders |
 | 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox | physically-based shading parameters in isolation (metallic ↔ roughness) |
-| 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight, PCF shadows, IBL | everything together — shadows, IBL, multiple materials, lights, post-FX |
+| 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight + a stage spotlight on the orb, PCF shadows, IBL | everything together — shadows, IBL, multiple materials, lights, post-FX |
+| 11 | Spotlight Stage | Three coloured spotlights converge on an iridescent hero on a dark floor — pair with `L` to see the cones, `K` to add IBL fill | spotlight cone falloff (`smoothstep(outerCos, innerCos, …)`) shared across every BRDF |
+| 12 | Shadow Theatre | Four rotating movers cast sweeping shadows from a low warm sun across a checker plane and back wall | dynamic shadows from a moving caster set; pair with `J` / `L` / `M` for the full shadow toolchain |
+| 13 | Day Night | The sun arcs around the X-Y plane every 24 s; intensity tracks elevation, colour warms toward sunset, four corner torches ramp on at dusk | dynamic light state — direction, colour, and intensity all driven by `tickActiveScene` |
+| 14 | IBL Focus | Five gold metallic spheres with roughness sweeping 0..1 — **no direct lights at all**. Toggle `K` to compare IBL on/off | the IBL contribution in isolation: prefiltered environment + BRDF LUT, with no Cook-Torrance direct term competing for attention |
 
 ## Gallery
 
