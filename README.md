@@ -2,6 +2,13 @@
 
 A small, opinionated 3D rendering engine in modern C++17 / OpenGL 3.3 core.
 
+**tyro is a teaching project.** Its goal is to show — in the smallest amount
+of code that's still recognisably a real engine — how a renderer fits
+together: the frame loop, the scene graph, the shader pipeline, lighting,
+shadows, IBL, and post-processing. It is not meant to compete with engines
+you'd ship a game on; it's meant to be readable end-to-end. Each demo scene
+is built to isolate a single concept so you can match code to pixels.
+
 Built from scratch — including a custom math library, a hand-rolled GL function
 loader, a procedural mesh library, an octree, frustum culling, shadow mapping,
 hot-reloadable shaders, GPU timer queries, screen-space post effects, and a
@@ -78,18 +85,18 @@ showcase the feature surface.
 
 Cycle with `[` and `]`:
 
-| # | Name | What it shows |
-|---|---|---|
-| 1 | Materials Showcase | Mesh × material grid: 5 mesh types × 4 materials |
-| 2 | Light Garden | 6 colored point lights orbiting on a checker ground |
-| 3 | Octree Stress | 512 entities scattered, demonstrates octree+frustum culling |
-| 4 | Effects Demo | A few hero meshes with strong contrast for post-process effects |
-| 5 | Showcase Bay | Teapot + Spot the cow + primitives, shadowed |
-| 6 | Water Pond | Animated water plane (sin-sum vertex displacement + Fresnel) with floating teapot/cow |
-| 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader |
-| 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders |
-| 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox |
-| 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight, PCF shadows, IBL |
+| # | Name | What it shows | Teaches |
+|---|---|---|---|
+| 1 | Materials Showcase | Mesh × material grid: 5 mesh types × 4 materials | how the same geometry looks under different BRDFs |
+| 2 | Light Garden | 6 colored point lights orbiting on a checker ground | multi-light Phong with attenuation |
+| 3 | Octree Stress | 512 entities scattered, demonstrates octree+frustum culling | broad-phase culling — toggle with `F` to see the cost |
+| 4 | Effects Demo | A few hero meshes with strong contrast for post-process effects | screen-space post-FX as a chain of fullscreen passes |
+| 5 | Showcase Bay | Teapot + Spot the cow + primitives, shadowed | directional shadow mapping + PCF (toggle `J`) |
+| 6 | Water Pond | Animated water plane (sin-sum vertex displacement + Fresnel) with floating teapot/cow | vertex displacement + Fresnel + per-pixel normals from finite differences |
+| 7 | Geometry Lab | Three meshes pulsing via the explode geometry shader | the geometry shader stage |
+| 8 | Texture Lab | 3×3 grid: textured (top row) vs procedural-pattern (mid) vs exotic (front) shaders | texture sampling vs procedural fragment shaders |
+| 9 | PBR Lab | 3×5 sphere grid: metallic sweep (back), roughness sweep at metallic=1 (mid), textured PBR materials (front) — Cook-Torrance GGX, normal mapping, ACES tonemap, IBL ambient + skybox | physically-based shading parameters in isolation (metallic ↔ roughness) |
+| 10 | Atrium | Full enclosed environment: brick walls, marble columns + ceiling, wood floor, central pedestal with iridescent orb, water pool, hologram + explode-torus + teapot + spot displays, 6 flickering torches + sun through skylight, PCF shadows, IBL | everything together — shadows, IBL, multiple materials, lights, post-FX |
 
 ## Gallery
 
@@ -216,6 +223,25 @@ framebuffer, then a text-overlay quad batch on top. `Scene` owns meshes,
 shaders, materials, entities, and lights; before the scene pass we extract a
 view-projection frustum (Gribb-Hartmann) and cull entities through a static
 octree. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
+
+## Where to start reading
+
+If you've cloned this and want to learn from it, a suggested path:
+
+1. **Build and run it.** Cycle scenes with `[` / `]` and toggle features
+   (`F` culling, `J` shadows, `K` IBL, `P` post-FX) so you can match each
+   bit of code to a visible difference.
+2. [`src/main.cpp`](src/main.cpp) — the demo. Each scene is built imperatively;
+   this is where meshes, materials, lights, and entities are wired up.
+3. [`src/core/Engine.cpp`](src/core/Engine.cpp) — the frame loop:
+   poll → fixed-timestep update(s) → render → swap.
+4. [`src/scene/Scene.cpp`](src/scene/Scene.cpp) — how per-frame uniforms are
+   uploaded once per shader and how entities are culled before drawing.
+5. [`shaders/phong_lit.frag`](shaders/phong_lit.frag) — start here for lit
+   shading. Then [`shaders/pbr.frag`](shaders/pbr.frag) for the full
+   Cook-Torrance + IBL version.
+6. [`ARCHITECTURE.md`](ARCHITECTURE.md) — full frame pipeline + subsystem
+   reference once you want the bird's-eye view.
 
 ## Acknowledgements
 
