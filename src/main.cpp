@@ -369,6 +369,7 @@ public:
 
     // ---- Pass 3: text overlay onto default ------------------------------
     gpuTimer_.begin(5);
+    if (showShadowPreview_) drawShadowPreview();
     if (showOverlay_) drawOverlay();
     gpuTimer_.end(5);
 
@@ -419,6 +420,7 @@ private:
     shFog_    = add("shaders/blit.vert", "shaders/post_fog.frag");        if (!shFog_) return false;
     shSsao_   = add("shaders/blit.vert", "shaders/post_ssao.frag");       if (!shSsao_) return false;
     shChrom_  = add("shaders/blit.vert", "shaders/post_chromatic.frag");  if (!shChrom_) return false;
+    shShadowPreview_ = add("shaders/blit.vert", "shaders/shadow_preview.frag"); if (!shShadowPreview_) return false;
     return true;
   }
 
@@ -1195,8 +1197,9 @@ private:
     edge(GLFW_KEY_T, prevT_, [&]{ showWireOverlay_ = !showWireOverlay_; });
     edge(GLFW_KEY_B, prevB_, [&]{ showDebugBounds_ = !showDebugBounds_; });
     edge(GLFW_KEY_L, prevL_, [&]{ showDebugLights_ = !showDebugLights_; });
-    edge(GLFW_KEY_J, prevJ_, [&]{ shadowsEnabled_  = !shadowsEnabled_;  });
-    edge(GLFW_KEY_K, prevK_, [&]{ iblEnabled_      = !iblEnabled_;      });
+    edge(GLFW_KEY_J, prevJ_, [&]{ shadowsEnabled_    = !shadowsEnabled_;    });
+    edge(GLFW_KEY_K, prevK_, [&]{ iblEnabled_        = !iblEnabled_;        });
+    edge(GLFW_KEY_M, prevM_, [&]{ showShadowPreview_ = !showShadowPreview_; });
     edge(GLFW_KEY_V, prevV_, [&]{
       fpsMode_ = static_cast<FpsMode>((static_cast<int>(fpsMode_) + 1)
                                       % static_cast<int>(FpsMode::COUNT));
@@ -1230,6 +1233,24 @@ private:
     sh->bind();
     if (setU) setU(*sh);
     fsTri_.draw();
+  }
+
+  // Renders the shadow depth texture as a small grayscale thumbnail in the
+  // bottom-right corner of the default framebuffer. Called from the UI pass
+  // (after post-FX) so the preview isn't crushed by tonemap/bloom.
+  void drawShadowPreview() {
+    FrameBuffer::bindDefault();
+    int side   = std::max(160, std::min(fbWidth_, fbHeight_) / 4);
+    int margin = 12;
+    glViewport(fbWidth_ - side - margin, margin, side, side);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    shShadowPreview_->bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, shadowMap_.depthTexture());
+    shShadowPreview_->setInt("uDepth", 0);
+    fsTri_.draw();
+    glViewport(0, 0, fbWidth_, fbHeight_);
   }
 
   void runPostFx() {
@@ -1380,11 +1401,12 @@ private:
                 cullingOn_       ? "ON" : "OFF",
                 shadowsEnabled_  ? "ON" : "OFF",
                 iblEnabled_      ? "ON" : "OFF"); y += lh;
-    text_.drawf(x, y, scale, col, "NORMALS %s  WIRE %s  BOUNDS %s  LIGHTS %s",
-                showNormals_     ? "ON" : "OFF",
-                showWireOverlay_ ? "ON" : "OFF",
-                showDebugBounds_ ? "ON" : "OFF",
-                showDebugLights_ ? "ON" : "OFF"); y += lh;
+    text_.drawf(x, y, scale, col, "NORMALS %s  WIRE %s  BOUNDS %s  LIGHTS %s  MAP %s",
+                showNormals_       ? "ON" : "OFF",
+                showWireOverlay_   ? "ON" : "OFF",
+                showDebugBounds_   ? "ON" : "OFF",
+                showDebugLights_   ? "ON" : "OFF",
+                showShadowPreview_ ? "ON" : "OFF"); y += lh;
 
     // GPU timer breakdown.
     Vec3 gpuCol{0.6f, 0.95f, 0.7f};
@@ -1404,7 +1426,7 @@ private:
     }
 
     // Hint block, bottom-left.
-    int hy = fbHeight_ - lh * 14 - 12;
+    int hy = fbHeight_ - lh * 15 - 12;
     text_.draw("WASD MOUSE   FLY",         x, hy, scale, dim); hy += lh;
     text_.draw("TAB          CAPTURE",     x, hy, scale, dim); hy += lh;
     text_.draw("[ ]          SCENE",       x, hy, scale, dim); hy += lh;
@@ -1414,6 +1436,7 @@ private:
     text_.draw("B            BOUNDS",      x, hy, scale, dim); hy += lh;
     text_.draw("L            LIGHTS",      x, hy, scale, dim); hy += lh;
     text_.draw("J            SHADOWS",     x, hy, scale, dim); hy += lh;
+    text_.draw("M            SHADOW MAP",  x, hy, scale, dim); hy += lh;
     text_.draw("K            IBL",         x, hy, scale, dim); hy += lh;
     text_.draw("V            FPS CAP",     x, hy, scale, dim); hy += lh;
     text_.draw("F            CULL",        x, hy, scale, dim); hy += lh;
@@ -1457,7 +1480,7 @@ private:
         * shPbr_=nullptr;
   Shader* shPass_=nullptr, *shSobel_=nullptr, *shBright_=nullptr, *shBlur_=nullptr,
         * shComp_=nullptr, *shFog_=nullptr, *shSsao_=nullptr, *shChrom_=nullptr,
-        * shTonemap_=nullptr;
+        * shTonemap_=nullptr, *shShadowPreview_=nullptr;
 
   Material* matLitWarm_=nullptr, *matLitCool_=nullptr, *matToon_=nullptr,
           * matRim_=nullptr, *matChecker_=nullptr, *matUnlit_=nullptr,
@@ -1495,10 +1518,11 @@ private:
   const char* sceneName_ = "?";
   const char* sceneDesc_ = "";
   int lightGardenStart_ = 0;
-  bool showNormals_     = false;
-  bool showWireOverlay_ = false;
-  bool showDebugBounds_ = false;
-  bool showDebugLights_ = false;
+  bool showNormals_       = false;
+  bool showWireOverlay_   = false;
+  bool showDebugBounds_   = false;
+  bool showDebugLights_   = false;
+  bool showShadowPreview_ = false;
 
   // 8 world-space corners of the directional light's shadow frustum, set
   // each frame alongside lightVP. Read by the debug-light overlay.
@@ -1527,7 +1551,7 @@ private:
        prev5_=false, prev6_=false, prev7_=false;
   bool prevTab_=false, prevP_=false, prevN_=false, prevF_=false,
        prevT_=false,   prevJ_=false, prevK_=false, prevV_=false,
-       prevB_=false,   prevL_=false;
+       prevB_=false,   prevL_=false, prevM_=false;
   bool prevLB_=false, prevRB_=false, prevH_=false;
 };
 
