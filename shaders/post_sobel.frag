@@ -1,4 +1,8 @@
 #version 330 core
+// Sobel edge detector.
+// Convolves luminance with the 3x3 Sobel kernels (Gx, Gy), takes the gradient
+// magnitude sqrt(gx^2 + gy^2), and adds it to a dimmed copy of the source —
+// bright outlines on a darkened background. Eight texture taps per pixel.
 
 in  vec2 vUV;
 out vec4 FragColor;

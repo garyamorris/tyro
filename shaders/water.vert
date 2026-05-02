@@ -1,4 +1,10 @@
 #version 330 core
+// Animated water surface.
+// Vertex displacement = sum of four sine waves with different directions,
+// frequencies, and speeds in world XZ. The surface normal is recomputed per
+// vertex from finite differences of the same wave field, so lighting follows
+// the moving surface instead of using the flat plane normal. Cheap, plausible,
+// no normal map required.
 
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;

@@ -1,4 +1,6 @@
 #version 330 core
+// "None" entry in the post-FX cycle. Copies uColor to the output, with an
+// optional vignette so even the no-effect path can carry one.
 
 in  vec2 vUV;
 out vec4 FragColor;

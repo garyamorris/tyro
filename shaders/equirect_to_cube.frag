@@ -1,7 +1,10 @@
 #version 330 core
 // Sample an equirectangular HDR image by direction and write to one face of a
 // cubemap (the destination face is selected by the caller via the framebuffer
-// attachment).
+// attachment). The kInvAtan constants are 1/(2*PI) and 1/PI — the inverse of
+// the standard equirect projection (longitude in x, latitude in y).
+// Step 1 of the IBL bake; everything downstream samples the cube, not the
+// equirect.
 in  vec3 vDir;
 out vec4 FragColor;
 

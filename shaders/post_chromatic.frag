@@ -1,4 +1,9 @@
 #version 330 core
+// Chromatic aberration.
+// Sample R, G, B at slightly different offsets along the radial direction
+// (vUV - 0.5), so the R channel is pulled inward and B outward (or vice
+// versa). uAmount scales the displacement. Mimics the wavelength-dependent
+// dispersion that real lenses get worst at the frame edges.
 
 in  vec2 vUV;
 out vec4 FragColor;

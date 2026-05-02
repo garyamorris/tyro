@@ -1,4 +1,8 @@
 #version 330 core
+// Bloom step 3 of 3: add the blurred brightpass on top of the scene and
+// optionally apply a vignette. Additive bloom gives soft glow around already-
+// bright pixels without lifting black levels, which is what makes it look
+// like camera/eye behaviour rather than a global brighten.
 
 in  vec2 vUV;
 out vec4 FragColor;

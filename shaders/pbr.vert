@@ -1,4 +1,8 @@
 #version 330 core
+// Standard model->world->clip transform. Forwards world-space position,
+// world-space normal (via uNormalMatrix = inverse-transpose of uModel's 3x3),
+// and world-space tangent so the fragment shader can build a TBN basis for
+// tangent-space normal mapping.
 
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
