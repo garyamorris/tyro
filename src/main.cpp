@@ -32,6 +32,7 @@
 
 #include "core/Engine.h"
 #include "math/Math.h"
+#include "renderer/DebugDraw.h"
 #include "renderer/FrameBuffer.h"
 #include "renderer/GpuTimer.h"
 #include "renderer/Mesh.h"
@@ -99,6 +100,7 @@ public:
     if (!loadShaders())   return false;
     buildMeshesAndMaterials();
     if (!text_.init())    return false;
+    if (!debug_.init())   return false;
 
     if (!shadowMap_.create(2048)) return false;
     gpuTimer_.init({"SHADOW", "SCENE", "SKY", "OVRLAY", "POSTFX", "UI"});
@@ -171,6 +173,7 @@ public:
       for (auto& s : scene_.shaders) s->reloadIfChanged();
       text_.reloadShaderIfChanged();
       skybox_.reloadShaderIfChanged();
+      debug_.reloadShaderIfChanged();
     }
   }
 
@@ -305,6 +308,20 @@ public:
       scene_.render(visible_, shWire_);
       glDisable(GL_BLEND);
       glDepthFunc(GL_LESS);
+    }
+    if (showDebugBounds_) {
+      // Green: each visible entity's world AABB. Orange: every octree node.
+      // Press F to toggle culling and watch the green boxes blink in/out.
+      for (int i : visible_) {
+        debug_.aabb(scene_.entities[i].worldAABB(), Vec3{0.2f, 1.0f, 0.4f});
+      }
+      std::vector<AABB> nodeBounds;
+      scene_.octreeNodeBounds(nodeBounds);
+      for (const AABB& b : nodeBounds) {
+        debug_.aabb(b, Vec3{1.0f, 0.6f, 0.2f});
+      }
+      glLineWidth(1.5f);
+      debug_.flush(scene_.camera.viewProj());
     }
     gpuTimer_.end(3);
 
@@ -1139,6 +1156,7 @@ private:
     }
 
     edge(GLFW_KEY_T, prevT_, [&]{ showWireOverlay_ = !showWireOverlay_; });
+    edge(GLFW_KEY_B, prevB_, [&]{ showDebugBounds_ = !showDebugBounds_; });
     edge(GLFW_KEY_J, prevJ_, [&]{ shadowsEnabled_  = !shadowsEnabled_;  });
     edge(GLFW_KEY_K, prevK_, [&]{ iblEnabled_      = !iblEnabled_;      });
     edge(GLFW_KEY_V, prevV_, [&]{
@@ -1324,9 +1342,10 @@ private:
                 cullingOn_       ? "ON" : "OFF",
                 shadowsEnabled_  ? "ON" : "OFF",
                 iblEnabled_      ? "ON" : "OFF"); y += lh;
-    text_.drawf(x, y, scale, col, "NORMALS %s  WIRE %s",
+    text_.drawf(x, y, scale, col, "NORMALS %s  WIRE %s  BOUNDS %s",
                 showNormals_     ? "ON" : "OFF",
-                showWireOverlay_ ? "ON" : "OFF"); y += lh;
+                showWireOverlay_ ? "ON" : "OFF",
+                showDebugBounds_ ? "ON" : "OFF"); y += lh;
 
     // GPU timer breakdown.
     Vec3 gpuCol{0.6f, 0.95f, 0.7f};
@@ -1346,13 +1365,14 @@ private:
     }
 
     // Hint block, bottom-left.
-    int hy = fbHeight_ - lh * 12 - 12;
+    int hy = fbHeight_ - lh * 13 - 12;
     text_.draw("WASD MOUSE   FLY",         x, hy, scale, dim); hy += lh;
     text_.draw("TAB          CAPTURE",     x, hy, scale, dim); hy += lh;
     text_.draw("[ ]          SCENE",       x, hy, scale, dim); hy += lh;
     text_.draw("P            POSTFX",      x, hy, scale, dim); hy += lh;
     text_.draw("N            NORMALS",     x, hy, scale, dim); hy += lh;
     text_.draw("T            WIREFRAME",   x, hy, scale, dim); hy += lh;
+    text_.draw("B            BOUNDS",      x, hy, scale, dim); hy += lh;
     text_.draw("J            SHADOWS",     x, hy, scale, dim); hy += lh;
     text_.draw("K            IBL",         x, hy, scale, dim); hy += lh;
     text_.draw("V            FPS CAP",     x, hy, scale, dim); hy += lh;
@@ -1367,6 +1387,7 @@ private:
   Window*  window_ = nullptr;
   Renderer renderer_;
   TextRenderer text_;
+  DebugDraw    debug_;
   FullscreenTriangle fsTri_;
   FrameBuffer sceneFbo_;
   FrameBuffer pingFbo_, pongFbo_;
@@ -1436,6 +1457,7 @@ private:
   int lightGardenStart_ = 0;
   bool showNormals_     = false;
   bool showWireOverlay_ = false;
+  bool showDebugBounds_ = false;
   bool shadowsEnabled_  = true;
   bool iblEnabled_      = true;
   bool cullingOn_       = true;
@@ -1459,7 +1481,8 @@ private:
   bool prev1_=false, prev2_=false, prev3_=false, prev4_=false,
        prev5_=false, prev6_=false, prev7_=false;
   bool prevTab_=false, prevP_=false, prevN_=false, prevF_=false,
-       prevT_=false,   prevJ_=false, prevK_=false, prevV_=false;
+       prevT_=false,   prevJ_=false, prevK_=false, prevV_=false,
+       prevB_=false;
   bool prevLB_=false, prevRB_=false, prevH_=false;
 };
 
