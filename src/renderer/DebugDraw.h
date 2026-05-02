@@ -43,6 +43,13 @@ public:
   // same winding. Used to visualise the directional-light shadow VP.
   void wireFrustum(const Vec3 corners[8], Vec3 color);
 
+  // Wire cone drawn from `apex` along `axis`, with the base sitting at
+  // distance `length` and a half-angle of `halfAngleDeg`. Uses N=segments
+  // points on the base circle plus 4 generator rays back to the apex.
+  // Used to visualise spotlight cones.
+  void cone(Vec3 apex, Vec3 axis, float halfAngleDeg, float length,
+            Vec3 color, int segments = 24);
+
   // Single batched draw call. Caller controls depth-test state — this just
   // binds the shader and draws. Clears the accumulator.
   void flush(const Mat4& viewProj);

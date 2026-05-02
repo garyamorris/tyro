@@ -345,12 +345,14 @@ public:
         }
       }
       if (showDebugLights_) {
-        // Point lights: wire sphere at the position, tinted by light colour
-        // so a red point light gets a red sphere. Directional sun: yellow
-        // wire frustum showing the volume the shadow map covers.
+        // Point lights: wire sphere at the position, tinted by light colour.
+        // Spot lights: wire cone whose half-angle = outerDeg, length = radius.
+        // Directional sun: yellow wire frustum (the shadow VP volume).
         for (const auto& L : scene_.lights) {
           if (L.type == LightType::Point) {
             debug_.sphere(L.position, L.radius, L.color);
+          } else if (L.type == LightType::Spot) {
+            debug_.cone(L.position, L.direction, L.outerDeg, L.radius, L.color);
           }
         }
         if (haveSun) {
@@ -725,6 +727,20 @@ private:
       e.position = torch.position; e.scaling = Vec3{0.12f, 0.12f, 0.12f};
       scene_.entities.push_back(e);
     }
+
+    // Stage spotlight from the ceiling, focused on the central orb. The
+    // tight cone (10° inner / 16° outer) makes a clear pool of cool light
+    // on the iridescent sphere — visualise the cone with `L`.
+    Light stageSpot;
+    stageSpot.type      = LightType::Spot;
+    stageSpot.position  = Vec3{0.0f, H - 0.5f, 0.0f};
+    stageSpot.direction = Vec3{0.0f, -1.0f, 0.0f};
+    stageSpot.color     = Vec3{0.55f, 0.75f, 1.0f};
+    stageSpot.intensity = 6.0f;
+    stageSpot.radius    = 9.0f;
+    stageSpot.innerDeg  = 10.0f;
+    stageSpot.outerDeg  = 16.0f;
+    scene_.lights.push_back(stageSpot);
 
     flyCam_.setLook(Vec3{0, 1.7f, 9.5f}, Vec3{0, 1.4f, 0});
     scene_.camera.zFar = 100.0f;

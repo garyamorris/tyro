@@ -14,14 +14,19 @@
 #define MAX_LIGHTS 8
 #define LIGHT_DIRECTIONAL 0
 #define LIGHT_POINT       1
+#define LIGHT_SPOT        2
 
 struct Light {
     int   type;
     vec3  position;
-    vec3  direction;  // for directional, points in light-shine direction
+    vec3  direction;  // directional + spot: where the light shines
     vec3  color;
     float intensity;
     float radius;
+    // Spot-only: cosines of the cone half-angles. Compared against
+    // dot(-Ldir, direction) so larger cosine = inside the cone.
+    float cutoffCos;
+    float outerCutoffCos;
 };
 
 in vec3 vWorldPos;
@@ -71,11 +76,21 @@ vec3 shade(Light L, vec3 N, vec3 V, vec3 worldPos, vec3 albedo) {
     if (L.type == LIGHT_DIRECTIONAL) {
         Ldir = normalize(-L.direction);
     } else {
+        // Point + Spot share the position-based attenuation; spot adds a
+        // cone falloff on top.
         vec3 d = L.position - worldPos;
         float l = length(d);
         Ldir = d / max(l, 1e-4);
         float t = clamp(1.0 - l / max(L.radius, 1e-4), 0.0, 1.0);
         atten = t * t;
+        if (L.type == LIGHT_SPOT) {
+            float cosTheta = dot(-Ldir, normalize(L.direction));
+            float spot = clamp(
+                (cosTheta - L.outerCutoffCos)
+                / max(L.cutoffCos - L.outerCutoffCos, 1e-4),
+                0.0, 1.0);
+            atten *= spot;
+        }
     }
     vec3 H = normalize(Ldir + V);
     float diffuse  = max(dot(N, Ldir), 0.0);
