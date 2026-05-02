@@ -1,4 +1,8 @@
 #version 330 core
+// Bloom step 2 of 3: separable Gaussian blur.
+// A 2D Gaussian factors into two 1D passes — once horizontally with
+// uDirection = (texelSize.x, 0), once vertically with (0, texelSize.y).
+// That's O(2N) taps instead of the O(N*N) a non-separable blur would need.
 
 in  vec2 vUV;
 out vec4 FragColor;

@@ -1,4 +1,15 @@
 #version 330 core
+// Blinn-Phong lit shader — the canonical "first lit shader."
+//   diffuse  = albedo * max(dot(N, L), 0)
+//   specular = pow(max(dot(N, H), 0), shininess), with H = normalize(L + V)
+// Sums over up to MAX_LIGHTS, with point-light attenuation (1 - d/r)^2.
+// Optional 3x3 PCF shadow on light[0] when it's a directional sun.
+// uHasAlbedo selects between flat-colour and texture-sampled albedo so the
+// same shader handles both material families.
+//
+// Refs:
+//   Blinn, "Models of Light Reflection for Computer Synthesized Pictures" (1977)
+//   Phong, "Illumination for Computer-Generated Pictures" (1975)
 
 #define MAX_LIGHTS 8
 #define LIGHT_DIRECTIONAL 0

@@ -1,7 +1,9 @@
 #version 330 core
 // Convolve the env cubemap with a cosine-weighted hemisphere kernel to bake
 // the diffuse irradiance map. Sampled at low res (32^2/face) since the result
-// is very smooth.
+// is very smooth — the convolution itself acts as a heavy low-pass filter.
+// Uniform sampling in (theta, phi) is cheap and good enough for diffuse;
+// importance sampling is reserved for the specular prefilter pass.
 in  vec3 vDir;
 out vec4 FragColor;
 

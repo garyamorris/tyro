@@ -1,4 +1,8 @@
 #version 330 core
+// Linear distance fog reconstructed from the depth buffer.
+// linearizeDepth() converts the non-linear post-projection depth back to a
+// view-space distance, then we lerp scene -> uFogColor over [uFogStart,
+// uFogEnd]. Cheap atmospheric depth cue without touching the geometry pass.
 
 in  vec2 vUV;
 out vec4 FragColor;

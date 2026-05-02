@@ -1,4 +1,20 @@
 #version 330 core
+// Physically-based forward shader (Cook-Torrance microfacet model).
+//   D = GGX / Trowbridge-Reitz normal distribution
+//   F = Schlick's Fresnel approximation
+//   G = Smith's correlated geometric attenuation (Schlick-GGX form)
+// Direct-light loop sums kD*(albedo/PI) + (D*G*F)/(4*NdL*NdV) over every
+// light, optionally shadowing light[0] when it's the directional sun.
+// Ambient is one of two paths:
+//   - flat ambient (3% of albedo) when IBL is off
+//   - Karis 2014 split-sum: irradiance cube * albedo for diffuse,
+//     prefilter cube + 2D BRDF LUT for specular
+// Output is linear HDR; tonemap + gamma happen in the post-FX final pass.
+//
+// Refs:
+//   Cook & Torrance, "A Reflectance Model for Computer Graphics" (1982)
+//   Karis, "Real Shading in Unreal Engine 4" (2014)
+//   Burley, "Physically-Based Shading at Disney" (2012)
 
 #define PI 3.14159265358979323846
 #define MAX_LIGHTS 8
