@@ -412,6 +412,7 @@ bool Demo::loadShaders() {
   shFog_    = add("shaders/blit.vert", "shaders/post_fog.frag");        if (!shFog_) return false;
   shSsao_   = add("shaders/blit.vert", "shaders/post_ssao.frag");       if (!shSsao_) return false;
   shChrom_  = add("shaders/blit.vert", "shaders/post_chromatic.frag");  if (!shChrom_) return false;
+  shFxaa_   = add("shaders/blit.vert", "shaders/post_fxaa.frag");       if (!shFxaa_) return false;
   shShadowPreview_ = add("shaders/blit.vert", "shaders/shadow_preview.frag"); if (!shShadowPreview_) return false;
   return true;
 }
@@ -919,6 +920,14 @@ void Demo::runPostFx() {
       });
     } break;
 
+    case PostFx::Fxaa: {
+      runFs(&pingFbo_, shFxaa_, [&](Shader& s){
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
+        s.setInt("uColor", 0);
+        s.setVec2("uTexelSize", texelSize);
+      });
+    } break;
+
     case PostFx::COUNT: break;
   }
 
@@ -943,6 +952,7 @@ const char* Demo::postFxName() const {
     case PostFx::Fog:   return "DEPTH FOG";
     case PostFx::Ssao:  return "SSAO LITE";
     case PostFx::Chromatic: return "CHROMATIC AB";
+    case PostFx::Fxaa: return "FXAA";
     case PostFx::COUNT: break;
   }
   return "?";
