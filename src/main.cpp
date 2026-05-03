@@ -499,7 +499,11 @@ void Demo::buildMeshesAndMaterials() {
   texMarbleImg_  = bakeTex(makeMarbleTex (kTexSize), kTexSize);
   texNoiseImg_   = bakeTex(makeNoiseTex  (kTexSize), kTexSize);
   texHexImg_     = bakeTex(makeHexTex    (kTexSize), kTexSize);
-  texNormalRough_= bakeTex(makeRoughNormalMap(kTexSize, 8.0f), kTexSize);
+  // Strength 8.0 was visibly noisy on spheres (perturbations larger than
+  // the diffuse cone). 1.8 keeps the surface "alive" without scattering the
+  // BRDF input across a hemisphere. The same texture on a flat floor was
+  // fine at 8.0 because the perturbation is tiny relative to a plane.
+  texNormalRough_= bakeTex(makeRoughNormalMap(kTexSize, 1.8f), kTexSize);
   std::fprintf(stderr, "[demo] generated %zu procedural textures (%dx%d each)\n",
                textures_.size(), kTexSize, kTexSize);
 
