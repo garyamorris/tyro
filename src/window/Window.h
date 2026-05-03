@@ -37,6 +37,7 @@ public:
 
   // Mouse / cursor.
   void cursorPos(double& x, double& y) const;
+  bool mouseButtonPressed(int glfwButton) const;
   void setCursorCaptured(bool captured);
   bool cursorCaptured() const { return cursorCaptured_; }
 
