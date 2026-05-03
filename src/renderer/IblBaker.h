@@ -22,6 +22,14 @@ std::vector<float> makeProceduralSkyHDR(int width, int height,
 // caller is responsible for glDeleteTextures() when no longer needed.
 unsigned int uploadEquirectHDR(const float* rgbF, int width, int height);
 
+// Loads a Radiance .hdr / OpenEXR-equivalent equirect file from disk via
+// stb_image (`stbi_loadf`). Returns an empty vector on failure (file
+// missing or unsupported format). On success `outW`/`outH` are set and
+// the buffer is interleaved RGB float in scanline order — top-of-sphere
+// at row 0, matching the convention of `makeProceduralSkyHDR`.
+std::vector<float> loadEquirectHDRFromFile(const char* path,
+                                           int& outW, int& outH);
+
 // Bakes the four IBL inputs from an equirect HDR source. Owns its own
 // resources; produced cubemaps + 2D LUT live as long as the IblBaker.
 //

@@ -6,6 +6,7 @@
 
 #include "Shader.h"
 #include "gl_loader.h"
+#include "stb_image.h"
 
 namespace tyro {
 
@@ -110,6 +111,25 @@ std::vector<float> makeProceduralSkyHDR(int width, int height,
     }
   }
   return data;
+}
+
+std::vector<float> loadEquirectHDRFromFile(const char* path,
+                                           int& outW, int& outH) {
+  // HDR equirect files are conventionally stored top-row-first (top of the
+  // sphere at y=0), matching makeProceduralSkyHDR's indexing. Disable the
+  // global flag stbi might have inherited from Texture's PNG/JPG loads.
+  stbi_set_flip_vertically_on_load(0);
+
+  int w = 0, h = 0, c = 0;
+  float* px = stbi_loadf(path, &w, &h, &c, 3); // force 3-channel RGB
+  if (!px) {
+    return {};
+  }
+  std::vector<float> out(px, px + static_cast<size_t>(w) * h * 3);
+  stbi_image_free(px);
+  outW = w;
+  outH = h;
+  return out;
 }
 
 unsigned int uploadEquirectHDR(const float* rgbF, int width, int height) {
