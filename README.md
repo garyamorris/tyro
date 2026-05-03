@@ -124,6 +124,7 @@ Cycle with `[` and `]`:
 | `WASD` | Move; `Q`/`E` (or `Space`/`Ctrl`) up/down; `Shift` = sprint |
 | Mouse | Look (when captured) |
 | `Tab` | Toggle mouse capture |
+| Left-click | Pick entity (only when cursor is visible — Tab to free first). Highlights the closest-hit entity AABB in magenta. |
 | `[` / `]` | Previous / next scene |
 | `P` | Cycle post-process effect |
 | `N` | Toggle geometry-shader normals overlay |

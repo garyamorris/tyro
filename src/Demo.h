@@ -161,6 +161,12 @@ public:
   bool showDebugLights_   = false;
   bool showShadowPreview_ = false;
 
+  // Mouse-pick state. Left-click casts a ray from the cursor and stores the
+  // closest-hit entity index, which gets a magenta wire AABB on top of the
+  // bounds overlay so the highlight is always visible.
+  int  pickedEntity_ = -1;
+  bool prevLMB_      = false;
+
   // 8 world-space corners of the directional light's shadow frustum, set
   // each frame alongside lightVP. Read by the debug-light overlay.
   Vec3 lightFrustumCorners_[8] = {};

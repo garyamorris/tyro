@@ -331,34 +331,43 @@ void Demo::onRender(float /*alpha*/) {
     glDisable(GL_BLEND);
     glDepthFunc(GL_LESS);
   }
-  if (showDebugBounds_ || showDebugLights_) {
-    if (showDebugBounds_) {
-      // Green: each visible entity's world AABB. Orange: every octree node.
-      // Press F to toggle culling and watch the green boxes blink in/out.
-      for (int i : visible_) {
-        debug_.aabb(scene_.entities[i].worldAABB(), Vec3{0.2f, 1.0f, 0.4f});
-      }
-      std::vector<AABB> nodeBounds;
-      scene_.octreeNodeBounds(nodeBounds);
-      for (const AABB& b : nodeBounds) {
-        debug_.aabb(b, Vec3{1.0f, 0.6f, 0.2f});
+  bool drewDebug = false;
+  if (showDebugBounds_) {
+    // Green: each visible entity's world AABB. Orange: every octree node.
+    // Press F to toggle culling and watch the green boxes blink in/out.
+    for (int i : visible_) {
+      debug_.aabb(scene_.entities[i].worldAABB(), Vec3{0.2f, 1.0f, 0.4f});
+    }
+    std::vector<AABB> nodeBounds;
+    scene_.octreeNodeBounds(nodeBounds);
+    for (const AABB& b : nodeBounds) {
+      debug_.aabb(b, Vec3{1.0f, 0.6f, 0.2f});
+    }
+    drewDebug = true;
+  }
+  if (showDebugLights_) {
+    // Point lights: wire sphere at the position, tinted by light colour.
+    // Spot lights: wire cone whose half-angle = outerDeg, length = radius.
+    // Directional sun: yellow wire frustum (the shadow VP volume).
+    for (const auto& L : scene_.lights) {
+      if (L.type == LightType::Point) {
+        debug_.sphere(L.position, L.radius, L.color);
+      } else if (L.type == LightType::Spot) {
+        debug_.cone(L.position, L.direction, L.outerDeg, L.radius, L.color);
       }
     }
-    if (showDebugLights_) {
-      // Point lights: wire sphere at the position, tinted by light colour.
-      // Spot lights: wire cone whose half-angle = outerDeg, length = radius.
-      // Directional sun: yellow wire frustum (the shadow VP volume).
-      for (const auto& L : scene_.lights) {
-        if (L.type == LightType::Point) {
-          debug_.sphere(L.position, L.radius, L.color);
-        } else if (L.type == LightType::Spot) {
-          debug_.cone(L.position, L.direction, L.outerDeg, L.radius, L.color);
-        }
-      }
-      if (haveSun) {
-        debug_.wireFrustum(lightFrustumCorners_, Vec3{1.0f, 0.95f, 0.4f});
-      }
+    if (haveSun) {
+      debug_.wireFrustum(lightFrustumCorners_, Vec3{1.0f, 0.95f, 0.4f});
     }
+    drewDebug = true;
+  }
+  // Picked-entity highlight always shows, independent of the bounds toggle.
+  if (pickedEntity_ >= 0 && pickedEntity_ < (int)scene_.entities.size()) {
+    debug_.aabb(scene_.entities[pickedEntity_].worldAABB(),
+                Vec3{1.0f, 0.2f, 1.0f});
+    drewDebug = true;
+  }
+  if (drewDebug) {
     glLineWidth(1.5f);
     debug_.flush(scene_.camera.viewProj());
   }
@@ -591,6 +600,7 @@ Demo::SceneInfo Demo::sceneInfo(int idx) {
 
 void Demo::buildScene(int idx) {
   scene_.clearActiveScene();
+  pickedEntity_ = -1;     // entity indices reset across scene swaps
   constexpr int kSceneCount = 14;
   sceneIdx_ = ((idx % kSceneCount) + kSceneCount) % kSceneCount;
   switch (sceneIdx_) {
@@ -775,6 +785,60 @@ void Demo::handleInput(float /*dt*/) {
   edge(GLFW_KEY_T, prevT_, [&]{ showWireOverlay_ = !showWireOverlay_; });
   edge(GLFW_KEY_B, prevB_, [&]{ showDebugBounds_ = !showDebugBounds_; });
   edge(GLFW_KEY_L, prevL_, [&]{ showDebugLights_ = !showDebugLights_; });
+
+  // Mouse picking — left-click while the cursor is visible (Tab to free).
+  // Casts a ray from the cursor pixel through the camera frustum and picks
+  // the entity whose world AABB is hit closest. Highlighted with a magenta
+  // wire box drawn through the debug-line renderer.
+  bool lmbDown = window_->mouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+  if (lmbDown && !prevLMB_ && !window_->cursorCaptured()) {
+    double cx = 0.0, cy = 0.0;
+    window_->cursorPos(cx, cy);
+    // Cursor position is in window-coords, so it shares a coordinate space
+    // with fbWidth_/fbHeight_ on most platforms (HiDPI macOS aside).
+    float ndcX = (2.0f * float(cx) / float(fbWidth_))  - 1.0f;
+    float ndcY = 1.0f - (2.0f * float(cy) / float(fbHeight_));
+
+    Vec3 fwd   = normalize(scene_.camera.target - scene_.camera.position);
+    Vec3 right = normalize(cross(fwd, scene_.camera.up));
+    Vec3 vUp   = cross(right, fwd);
+    float tHalf = std::tan(scene_.camera.fovYDeg * 0.5f * kPi / 180.0f);
+    Vec3 rayDir = normalize(fwd
+                            + right * (ndcX * tHalf * scene_.camera.aspect)
+                            + vUp   * (ndcY * tHalf));
+    Vec3 rayOrigin = scene_.camera.position;
+    Vec3 invDir{ 1.0f / rayDir.x, 1.0f / rayDir.y, 1.0f / rayDir.z };
+
+    int   bestIdx  = -1;
+    float bestT    = 1e30f;
+    for (int i = 0; i < (int)scene_.entities.size(); ++i) {
+      AABB box = scene_.entities[i].worldAABB();
+      // Slabs algorithm. tx0/tx1 are the entry/exit t-values along x; we
+      // sort them so tMin gets the entry, tMax the exit, then take the
+      // largest entry and smallest exit across all 3 axes.
+      Vec3 t0{ (box.min.x - rayOrigin.x) * invDir.x,
+               (box.min.y - rayOrigin.y) * invDir.y,
+               (box.min.z - rayOrigin.z) * invDir.z };
+      Vec3 t1{ (box.max.x - rayOrigin.x) * invDir.x,
+               (box.max.y - rayOrigin.y) * invDir.y,
+               (box.max.z - rayOrigin.z) * invDir.z };
+      Vec3 tMin{ std::min(t0.x, t1.x), std::min(t0.y, t1.y), std::min(t0.z, t1.z) };
+      Vec3 tMax{ std::max(t0.x, t1.x), std::max(t0.y, t1.y), std::max(t0.z, t1.z) };
+      float tEnter = std::max({tMin.x, tMin.y, tMin.z});
+      float tExit  = std::min({tMax.x, tMax.y, tMax.z});
+      if (tEnter <= tExit && tExit > 0.0f) {
+        float t = tEnter > 0.0f ? tEnter : 0.0f;
+        if (t < bestT) { bestT = t; bestIdx = i; }
+      }
+    }
+    pickedEntity_ = bestIdx;
+    if (bestIdx >= 0) {
+      std::fprintf(stderr, "[pick] entity %d at t=%.2f\n", bestIdx, bestT);
+    } else {
+      std::fprintf(stderr, "[pick] nothing\n");
+    }
+  }
+  prevLMB_ = lmbDown;
   edge(GLFW_KEY_J, prevJ_, [&]{ shadowsEnabled_    = !shadowsEnabled_;    });
   edge(GLFW_KEY_K, prevK_, [&]{ iblEnabled_        = !iblEnabled_;        });
   edge(GLFW_KEY_M, prevM_, [&]{ showShadowPreview_ = !showShadowPreview_; });
@@ -1022,9 +1086,10 @@ void Demo::drawOverlay() {
   }
 
   // Hint block, bottom-left.
-  int hy = fbHeight_ - lh * 15 - 12;
+  int hy = fbHeight_ - lh * 16 - 12;
   text_.draw("WASD MOUSE   FLY",         x, hy, scale, dim); hy += lh;
   text_.draw("TAB          CAPTURE",     x, hy, scale, dim); hy += lh;
+  text_.draw("LMB          PICK",        x, hy, scale, dim); hy += lh;
   text_.draw("[ ]          SCENE",       x, hy, scale, dim); hy += lh;
   text_.draw("P            POSTFX",      x, hy, scale, dim); hy += lh;
   text_.draw("N            NORMALS",     x, hy, scale, dim); hy += lh;

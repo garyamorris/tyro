@@ -71,6 +71,10 @@ void Window::cursorPos(double& x, double& y) const {
   glfwGetCursorPos(window_, &x, &y);
 }
 
+bool Window::mouseButtonPressed(int button) const {
+  return glfwGetMouseButton(window_, button) == GLFW_PRESS;
+}
+
 void Window::setCursorCaptured(bool captured) {
   if (!window_) return;
   glfwSetInputMode(window_, GLFW_CURSOR,
