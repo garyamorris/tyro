@@ -10,10 +10,11 @@
 namespace tyro {
 
 void Demo::buildSceneSpotStage() {
-  // Dark matte floor — high contrast against the coloured spots.
+  // Dark matte floor — high contrast against the coloured spots, but not so
+  // dark that the colour pools die in the (1 - d/r)² attenuation tail.
   auto darkMat = std::make_unique<Material>();
   darkMat->shader = shLit_;
-  darkMat->albedo = Vec3{0.06f, 0.06f, 0.07f};
+  darkMat->albedo = Vec3{0.12f, 0.12f, 0.14f};
   Material* dark = darkMat.get();
   scene_.materials.push_back(std::move(darkMat));
 
@@ -37,6 +38,12 @@ void Demo::buildSceneSpotStage() {
     {0.25f, 1.00f, 0.40f},  // green
     {0.30f, 0.45f, 1.00f},  // blue
   };
+  // Geometry note: each spot sits at y=5, ~5.5 from the centre, aimed at
+  // the orb at y=1.4. The cone axis hits the floor (y=-0.5) at ~10 units
+  // along the axis, so `radius` MUST exceed that or `(1 - d/r)²` clamps
+  // to zero before the cone reaches the ground and the floor stays black.
+  // Picking 14 leaves a comfortable falloff tail past the floor pool.
+  // Cones are also widened slightly (12°/20°) so the floor pools read.
   Vec3 target{0.0f, 1.4f, 0.0f};
   for (int i = 0; i < 3; ++i) {
     float a = (float(i) / 3.0f) * 2.0f * kPi;
@@ -46,10 +53,10 @@ void Demo::buildSceneSpotStage() {
     s.position  = pos;
     s.direction = normalize(target - pos);
     s.color     = colors[i];
-    s.intensity = 9.0f;
-    s.radius    = 9.0f;
-    s.innerDeg  = 8.0f;
-    s.outerDeg  = 14.0f;
+    s.intensity = 12.0f;
+    s.radius    = 14.0f;
+    s.innerDeg  = 12.0f;
+    s.outerDeg  = 20.0f;
     scene_.lights.push_back(s);
   }
 
