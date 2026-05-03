@@ -67,6 +67,22 @@ add_executable(tyro
   src/scene/Entity.cpp
   src/scene/Octree.cpp
   src/scene/Scene.cpp
+  # Per-scene builders — each `Demo::buildSceneXxx()` lives next to the
+  # concept it teaches.
+  src/scenes/scene_materials.cpp
+  src/scenes/scene_light_garden.cpp
+  src/scenes/scene_octree_stress.cpp
+  src/scenes/scene_effects.cpp
+  src/scenes/scene_showcase.cpp
+  src/scenes/scene_water_pond.cpp
+  src/scenes/scene_geometry_lab.cpp
+  src/scenes/scene_texture_showcase.cpp
+  src/scenes/scene_pbr_showcase.cpp
+  src/scenes/scene_atrium.cpp
+  src/scenes/scene_spot_stage.cpp
+  src/scenes/scene_shadow_theatre.cpp
+  src/scenes/scene_day_night.cpp
+  src/scenes/scene_ibl_focus.cpp
 )
 
 target_include_directories(tyro PRIVATE src)
