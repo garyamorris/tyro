@@ -133,6 +133,38 @@ std::vector<float> loadEquirectHDRFromFile(const char* path,
   stbi_image_free(px);
   outW = w;
   outH = h;
+
+  // Diagnostic: dump min / max / avg per channel + a 3x3 sample grid so we
+  // can spot loader corruption (channel-swap, exotic colour space, broken
+  // exponent decoding) before the IBL bake masks it.
+  {
+    float minR = 1e30f, minG = 1e30f, minB = 1e30f;
+    float maxR =-1e30f, maxG =-1e30f, maxB =-1e30f;
+    double sumR = 0, sumG = 0, sumB = 0;
+    size_t n = static_cast<size_t>(w) * h;
+    for (size_t i = 0; i < n; ++i) {
+      float r = out[i*3+0], g = out[i*3+1], b = out[i*3+2];
+      minR = std::min(minR, r); minG = std::min(minG, g); minB = std::min(minB, b);
+      maxR = std::max(maxR, r); maxG = std::max(maxG, g); maxB = std::max(maxB, b);
+      sumR += r; sumG += g; sumB += b;
+    }
+    std::fprintf(stderr,
+                 "[ibl] hdr stats: min(%.3f, %.3f, %.3f) max(%.2f, %.2f, %.2f) avg(%.3f, %.3f, %.3f)\n",
+                 minR, minG, minB, maxR, maxG, maxB,
+                 sumR/n, sumG/n, sumB/n);
+    auto px3 = [&](int x, int y) {
+      size_t i = (static_cast<size_t>(y) * w + x) * 3;
+      std::fprintf(stderr, "  [%4d,%4d] (%.2f, %.2f, %.2f)\n",
+                   x, y, out[i+0], out[i+1], out[i+2]);
+    };
+    std::fprintf(stderr, "[ibl] hdr 3x3 grid (file convention — row 0 is BOTTOM after flip):\n");
+    int xL = w/4, xC = w/2, xR = 3*w/4;
+    int yT = h - 1, yC = h/2, yB = 0;
+    px3(xL, yT); px3(xC, yT); px3(xR, yT);
+    px3(xL, yC); px3(xC, yC); px3(xR, yC);
+    px3(xL, yB); px3(xC, yB); px3(xR, yB);
+  }
+
   return out;
 }
 
@@ -318,6 +350,7 @@ bool IblBaker::bakeFromEquirect(unsigned int equirectTex, int srcW, int srcH) {
   std::fprintf(stderr,
     "[ibl] baked: env %d^2 + mips, irradiance %d^2, prefilter %d^2 x %d mips, brdf %d^2\n",
     kEnvFace, kIrrFace, kPrefFace, prefilterMips_, kLut);
+
   return true;
 }
 
