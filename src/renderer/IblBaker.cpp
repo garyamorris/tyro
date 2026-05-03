@@ -115,10 +115,14 @@ std::vector<float> makeProceduralSkyHDR(int width, int height,
 
 std::vector<float> loadEquirectHDRFromFile(const char* path,
                                            int& outW, int& outH) {
-  // HDR equirect files are conventionally stored top-row-first (top of the
-  // sphere at y=0), matching makeProceduralSkyHDR's indexing. Disable the
-  // global flag stbi might have inherited from Texture's PNG/JPG loads.
-  stbi_set_flip_vertically_on_load(0);
+  // The equirect_to_cube shader samples uv.y = asin(dir.y)/pi + 0.5, so
+  // direction "UP" maps to V=1 (top of GL texture coordinate space).
+  // GL stores data such that the FIRST data row lands at V=0 (bottom).
+  // Standard equirect HDR files have row 0 = top-of-sphere (sky), so we
+  // need to flip vertically on load so that "sky" rows end up at V=1.
+  // Without this the loaded HDR appears upside-down — sky on the floor,
+  // ground in the sky — once baked into the IBL cubemaps.
+  stbi_set_flip_vertically_on_load(1);
 
   int w = 0, h = 0, c = 0;
   float* px = stbi_loadf(path, &w, &h, &c, 3); // force 3-channel RGB
