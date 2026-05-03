@@ -46,8 +46,10 @@ showcase the feature surface.
   tonemap. Same shader handles uniform-color, textured-albedo, and
   metallic-roughness-mapped variants.
 - **IBL** — image-based lighting via Karis 2014 split-sum approximation. A
-  procedural HDR sky is generated at startup (gradient + bright sun disc),
-  then baked into: an environment cubemap (equirect → 512² × 6, with mips),
+  procedural HDR sky is generated at startup (gradient + bright sun disc) by
+  default; drop a Radiance `.hdr` equirect into `assets/sky.hdr` and the
+  loader picks it up instead. It's then baked into: an environment cubemap
+  (equirect → 512² × 6, with mips),
   a 32² diffuse irradiance cubemap (cosine-hemisphere convolution), a
   128² × 5-mip prefiltered radiance cubemap (GGX importance-sampled, mip-
   per-roughness), and a 512² RG16F BRDF LUT (Hammersley + Schlick G_Smith).

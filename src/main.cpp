@@ -93,14 +93,26 @@ bool Demo::onInit(Window& w) {
   if (!shadowMap_.create(2048)) return false;
   gpuTimer_.init({"SHADOW", "SCENE", "SKY", "OVRLAY", "POSTFX", "UI"});
 
-  // ---- Bake the IBL pipeline once at startup (procedural HDR sky) ------
+  // ---- Bake the IBL pipeline once at startup -------------------------
+  // First try `assets/sky.hdr` (any equirect Radiance HDR or OpenEXR-ish
+  // float file via stb_image). Fall back to a procedural sky so the demo
+  // works on a fresh clone without external assets.
   {
-    // Match Scene 9's sun direction so the bright sun lines up with the
-    // shadow-casting light for visual coherence.
-    Vec3 sunDir = -normalize(Vec3{-0.4f, -1.0f, -0.3f});
-    auto skyHdr = makeProceduralSkyHDR(1024, 512, sunDir, 80.0f);
-    hdrEquirect_ = uploadEquirectHDR(skyHdr.data(), 1024, 512);
-    if (!iblBaker_.bakeFromEquirect(hdrEquirect_, 1024, 512)) return false;
+    int skyW = 0, skyH = 0;
+    std::vector<float> skyHdr = loadEquirectHDRFromFile("assets/sky.hdr",
+                                                        skyW, skyH);
+    if (!skyHdr.empty()) {
+      std::fprintf(stderr, "[ibl] loaded assets/sky.hdr (%dx%d)\n", skyW, skyH);
+    } else {
+      // Procedural fallback. Sun direction matches scene 9 so the bright
+      // sun lines up with the shadow-casting light for visual coherence.
+      Vec3 sunDir = -normalize(Vec3{-0.4f, -1.0f, -0.3f});
+      skyW = 1024; skyH = 512;
+      skyHdr = makeProceduralSkyHDR(skyW, skyH, sunDir, 80.0f);
+      std::fprintf(stderr, "[ibl] using procedural sky (%dx%d)\n", skyW, skyH);
+    }
+    hdrEquirect_ = uploadEquirectHDR(skyHdr.data(), skyW, skyH);
+    if (!iblBaker_.bakeFromEquirect(hdrEquirect_, skyW, skyH)) return false;
     if (!skybox_.init()) return false;
   }
 
