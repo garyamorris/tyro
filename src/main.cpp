@@ -434,6 +434,7 @@ bool Demo::loadShaders() {
   shSsao_   = add("shaders/blit.vert", "shaders/post_ssao.frag");       if (!shSsao_) return false;
   shChrom_  = add("shaders/blit.vert", "shaders/post_chromatic.frag");  if (!shChrom_) return false;
   shFxaa_   = add("shaders/blit.vert", "shaders/post_fxaa.frag");       if (!shFxaa_) return false;
+  shGodrays_= add("shaders/blit.vert", "shaders/post_godrays.frag");    if (!shGodrays_) return false;
   shShadowPreview_ = add("shaders/blit.vert", "shaders/shadow_preview.frag"); if (!shShadowPreview_) return false;
   return true;
 }
@@ -1004,6 +1005,53 @@ void Demo::runPostFx() {
       });
     } break;
 
+    case PostFx::Godrays: {
+      // Volumetric god rays. Needs the directional sun + valid shadow
+      // map; if either is missing, fall back to a passthrough so the
+      // scene still composites correctly.
+      bool haveSun = !scene_.lights.empty()
+                  && scene_.lights[0].type == LightType::Directional;
+      if (haveSun && shadowsEnabled_) {
+        // Build the camera basis the shader needs to reconstruct each
+        // pixel's world ray analytically.
+        Vec3 fwd   = normalize(scene_.camera.target - scene_.camera.position);
+        Vec3 right = normalize(cross(fwd, scene_.camera.up));
+        Vec3 vUp   = cross(right, fwd);
+        float tanHalfFov = std::tan(scene_.camera.fovYDeg * 0.5f * kPi / 180.0f);
+
+        const Light& sun = scene_.lights[0];
+        runFs(&pingFbo_, shGodrays_, [&](Shader& s){
+          glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
+          s.setInt("uColor", 0);
+          glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, sceneFbo_.depthTexture());
+          s.setInt("uDepth", 1);
+          glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, shadowMap_.depthTexture());
+          s.setInt("uShadowMap", 2);
+          glActiveTexture(GL_TEXTURE0);
+
+          s.setMat4 ("uViewProj",     scene_.camera.viewProj());
+          s.setMat4 ("uLightVP",      scene_.lightVP);
+          s.setVec3 ("uCameraPos",    scene_.camera.position);
+          s.setVec3 ("uCameraFwd",    fwd);
+          s.setVec3 ("uCameraRight",  right);
+          s.setVec3 ("uCameraUp",     vUp);
+          s.setFloat("uTanHalfFov",   tanHalfFov);
+          s.setFloat("uAspect",       scene_.camera.aspect);
+          s.setVec3 ("uSunDir",       normalize(sun.direction));
+          s.setVec3 ("uSunColor",     sun.color * sun.intensity);
+          s.setFloat("uStrength",     0.40f);
+          s.setFloat("uMaxDist",      40.0f);
+        });
+      } else {
+        // Passthrough — same as PostFx::None.
+        runFs(&pingFbo_, shPass_, [&](Shader& s){
+          glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sceneFbo_.colorTexture());
+          s.setInt("uColor", 0);
+          s.setFloat("uVignette", 0.0f);
+        });
+      }
+    } break;
+
     case PostFx::COUNT: break;
   }
 
@@ -1029,6 +1077,7 @@ const char* Demo::postFxName() const {
     case PostFx::Ssao:  return "SSAO LITE";
     case PostFx::Chromatic: return "CHROMATIC AB";
     case PostFx::Fxaa: return "FXAA";
+    case PostFx::Godrays: return "GOD RAYS";
     case PostFx::COUNT: break;
   }
   return "?";

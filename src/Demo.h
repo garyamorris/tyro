@@ -117,7 +117,7 @@ public:
         * shPbr_=nullptr;
   Shader* shPass_=nullptr, *shSobel_=nullptr, *shBright_=nullptr, *shBlur_=nullptr,
         * shComp_=nullptr, *shFog_=nullptr, *shSsao_=nullptr, *shChrom_=nullptr,
-        * shFxaa_=nullptr,
+        * shFxaa_=nullptr, *shGodrays_=nullptr,
         * shTonemap_=nullptr, *shShadowPreview_=nullptr;
 
   Material* matLitWarm_=nullptr, *matLitCool_=nullptr, *matToon_=nullptr,
@@ -144,7 +144,7 @@ public:
   int shadowTheatreFirstMover_ = -1;
   int dayNightTorchStart_      = -1;
 
-  enum class PostFx { None, Sobel, Bloom, Fog, Ssao, Chromatic, Fxaa, COUNT };
+  enum class PostFx { None, Sobel, Bloom, Fog, Ssao, Chromatic, Fxaa, Godrays, COUNT };
   PostFx postFx_ = PostFx::None;
   float  exposure_ = 1.0f;
   enum class FpsMode { Fps120, Fps60, Unlocked, COUNT };

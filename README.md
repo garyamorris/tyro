@@ -61,7 +61,7 @@ showcase the feature surface.
 - **Frame buffers** with selectable depth attachments (none / renderbuffer /
   sampleable depth texture)
 - **Screen-space post-process chain** (cycle with `P`):
-  None / Sobel edge / Bloom (3 passes) / Depth fog / SSAO-lite / Chromatic ab. / FXAA.
+  None / Sobel edge / Bloom (3 passes) / Depth fog / SSAO-lite / Chromatic ab. / FXAA / God rays (32-step shadow-map ray-march).
 - **Directional shadow mapping** — 2K depth-only FBO, 3×3 PCF, slope-scaled
   polygon offset, automatic light-VP from `lights[0]`
 
